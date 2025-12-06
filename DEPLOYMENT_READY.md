@@ -8,8 +8,9 @@
 
 **Value:**
 ```
-mongodb+srv://prabin:ktmlifecare2025@cluster0.8uds5sw.mongodb.net/clinic_management?retryWrites=true&w=majority
+mongodb+srv://prabin:YOUR_PASSWORD@cluster0.8uds5sw.mongodb.net/clinic_management?retryWrites=true&w=majority
 ```
+**Note:** Replace `YOUR_PASSWORD` with your actual MongoDB password. See `RENDER_ENV_SETUP.txt` (local file, not in git) for the complete connection string.
 
 Copy this entire string and paste it into Render dashboard!
 
@@ -21,8 +22,9 @@ Add these to your Render backend service:
 
 ### 1. MongoDB (Required)
 ```
-MONGODB_URI=mongodb+srv://prabin:ktmlifecare2025@cluster0.8uds5sw.mongodb.net/clinic_management?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://prabin:YOUR_PASSWORD@cluster0.8uds5sw.mongodb.net/clinic_management?retryWrites=true&w=majority
 ```
+**Note:** Replace `YOUR_PASSWORD` with your actual password. See `RENDER_ENV_SETUP.txt` (local file) for ready-to-use connection string.
 
 ### 2. Server Configuration
 ```
