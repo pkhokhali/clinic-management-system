@@ -1,0 +1,8 @@
+# MongoDB Connection String - READY TO USE
+# ⚠️ SECURITY: This file contains sensitive information
+# DO NOT commit this file to git - it's already in .gitignore
+
+# For Render Environment Variable (MONGODB_URI):
+mongodb+srv://prabin:ktmlifecare2025@cluster0.8uds5sw.mongodb.net/clinic_management?retryWrites=true&w=majority
+
+# Copy the line above and paste it into Render dashboard as MONGODB_URI
