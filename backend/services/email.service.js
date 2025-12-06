@@ -1,19 +1,38 @@
 const nodemailer = require('nodemailer');
 
-// Create reusable transporter
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: process.env.EMAIL_PORT,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+// Lazy initialization - only create transporter when credentials are available
+let transporter = null;
+
+const getTransporter = () => {
+  if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    return null;
+  }
+  
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST,
+      port: process.env.EMAIL_PORT || 587,
+      secure: false,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+  }
+  
+  return transporter;
+};
 
 // Send email
 exports.sendEmail = async (options) => {
   try {
+    const emailTransporter = getTransporter();
+    
+    if (!emailTransporter) {
+      console.warn('Email credentials not configured. Email not sent.');
+      return null;
+    }
+
     const message = {
       from: `${process.env.EMAIL_FROM_NAME || 'Clinic Management'} <${process.env.EMAIL_USER}>`,
       to: options.email,
@@ -22,7 +41,7 @@ exports.sendEmail = async (options) => {
       html: options.html || options.message,
     };
 
-    const info = await transporter.sendMail(message);
+    const info = await emailTransporter.sendMail(message);
     console.log('Message sent: %s', info.messageId);
     return info;
   } catch (error) {
@@ -43,7 +62,7 @@ exports.sendPasswordResetEmail = async (user, resetToken) => {
     <p>If you didn't request this, please ignore this email.</p>
   `;
 
-  return await this.sendEmail({
+  return await exports.sendEmail({
     email: user.email,
     subject: 'Password Reset Request',
     html: message,
@@ -65,7 +84,7 @@ exports.sendAppointmentConfirmation = async (user, appointment) => {
     <p>Thank you for choosing our clinic.</p>
   `;
 
-  return await this.sendEmail({
+  return await exports.sendEmail({
     email: user.email,
     subject: 'Appointment Confirmed',
     html: message,
@@ -86,7 +105,7 @@ exports.sendLabResultNotification = async (user, labResult) => {
     <p>Please log in to your account to view the results.</p>
   `;
 
-  return await this.sendEmail({
+  return await exports.sendEmail({
     email: user.email,
     subject: 'Lab Results Available',
     html: message,
