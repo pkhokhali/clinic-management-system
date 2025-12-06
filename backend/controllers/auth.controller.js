@@ -82,6 +82,7 @@ exports.login = async (req, res) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
+        message: 'Validation failed',
         errors: errors.array()
       });
     }
@@ -96,13 +97,16 @@ exports.login = async (req, res) => {
       });
     }
 
+    // Normalize email to lowercase for consistent lookup
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Check for user and include password for comparison
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid email or password'
       });
     }
 
@@ -114,18 +118,53 @@ exports.login = async (req, res) => {
       });
     }
 
+    // Check if password exists and is hashed
+    if (!user.password) {
+      return res.status(500).json({
+        success: false,
+        message: 'Password not set for this user. Please contact support.'
+      });
+    }
+
+    // Check if password is properly hashed (bcrypt hashes start with $2a$, $2b$, or $2y$)
+    const isHashed = /^\$2[aby]\$\d+\$/.test(user.password);
+    if (!isHashed) {
+      return res.status(500).json({
+        success: false,
+        message: 'Password format error. Please reset your password.'
+      });
+    }
+
     // Check if password matches
-    const isMatch = await user.comparePassword(password);
+    let isMatch;
+    try {
+      isMatch = await user.comparePassword(password);
+    } catch (compareError) {
+      console.error('Password comparison error:', compareError);
+      return res.status(500).json({
+        success: false,
+        message: 'Error verifying password. Please try again.'
+      });
+    }
 
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid email or password'
       });
     }
 
     // Generate token
-    const token = user.generateToken();
+    let token;
+    try {
+      token = user.generateToken();
+    } catch (tokenError) {
+      console.error('Token generation error:', tokenError);
+      return res.status(500).json({
+        success: false,
+        message: 'Error generating authentication token. Please try again.'
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -143,10 +182,11 @@ exports.login = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({
       success: false,
       message: 'Error logging in',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
