@@ -40,8 +40,6 @@ coverage/
 *.pem
 .cache/
 
-# Sensitive connection strings and passwords
+# Sensitive connection strings
 MONGODB_CONNECTION_STRING.txt
 *_CONNECTION_STRING.txt
-RENDER_ENV_SETUP.txt
-*_ENV_SETUP.txt
