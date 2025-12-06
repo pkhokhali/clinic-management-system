@@ -38,7 +38,21 @@ export const login = createAsyncThunk(
         '/auth/login',
         credentials
       );
+      
+      // Check if response structure is correct
+      if (!response.data || !response.data.success) {
+        console.error('Invalid response structure:', response.data);
+        return rejectWithValue(
+          response.data?.message || 'Invalid response from server'
+        );
+      }
+
       const { user, token } = response.data.data!;
+      
+      if (!user || !token) {
+        console.error('Missing user or token in response:', response.data);
+        return rejectWithValue('Invalid response data from server');
+      }
       
       if (typeof window !== 'undefined') {
         localStorage.setItem('token', token);
@@ -47,8 +61,33 @@ export const login = createAsyncThunk(
       
       return { user, token };
     } catch (error: any) {
+      // Enhanced error logging
+      console.error('Login error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        url: error.config?.url,
+        baseURL: error.config?.baseURL
+      });
+
+      // Handle different error types
+      if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        return rejectWithValue(
+          'Cannot connect to server. Please check your internet connection and ensure the backend is running.'
+        );
+      }
+
+      if (error.response) {
+        // Server responded with error status
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.error ||
+                           `Server error (${error.response.status})`;
+        return rejectWithValue(errorMessage);
+      }
+
+      // Request was made but no response
       return rejectWithValue(
-        error.response?.data?.message || 'Login failed. Please try again.'
+        error.message || 'Login failed. Please try again.'
       );
     }
   }
