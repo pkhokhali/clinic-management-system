@@ -1,0 +1,8 @@
+# Backend URL - Render
+https://clinic-management-backend-2fuj.onrender.com
+
+# API Base URL (for frontend)
+https://clinic-management-backend-2fuj.onrender.com/api
+
+# Health Check URL
+https://clinic-management-backend-2fuj.onrender.com/api/health
