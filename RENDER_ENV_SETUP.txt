@@ -1,0 +1,42 @@
+# Render Environment Variables - Copy and Paste Ready
+
+# ============================================
+# REQUIRED VARIABLES (Copy these to Render)
+# ============================================
+
+# 1. MongoDB Connection String
+MONGODB_URI=mongodb+srv://prabinkhokhali89_db_user:gWH0EDUvYHkL0XA3@clinic-management.5g7gvf7.mongodb.net/clinic_management?retryWrites=true&w=majority
+
+# 2. Server Configuration
+NODE_ENV=production
+PORT=10000
+
+# 3. JWT Configuration (Already generated)
+JWT_SECRET=mQlytS1dTrDOq6KBta+4zlB7H72yIgdUlbGhWo28RJs=
+JWT_EXPIRE=7d
+
+# 4. Frontend URL (Update after Vercel deployment)
+FRONTEND_URL=https://your-app.vercel.app
+
+# ============================================
+# OPTIONAL VARIABLES (Add later if needed)
+# ============================================
+
+# Email Configuration
+# EMAIL_HOST=smtp.gmail.com
+# EMAIL_PORT=587
+# EMAIL_USER=your_email@gmail.com
+# EMAIL_PASS=your_app_password
+
+# SMS Configuration
+# TWILIO_ACCOUNT_SID=your_twilio_account_sid
+# TWILIO_AUTH_TOKEN=your_twilio_auth_token
+# TWILIO_PHONE_NUMBER=your_twilio_phone_number
+
+# Payment Gateways
+# KHALTI_SECRET_KEY=your_khalti_secret_key
+# KHALTI_PUBLIC_KEY=your_khalti_public_key
+# ESEWA_MERCHANT_ID=your_esewa_merchant_id
+# ESEWA_SECRET_KEY=your_esewa_secret_key
+# FONEPAY_MERCHANT_ID=your_fonepay_merchant_id
+# FONEPAY_SECRET_KEY=your_fonepay_secret_key
