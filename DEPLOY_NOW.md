@@ -46,7 +46,7 @@ Add these one by one:
 **1. MongoDB Connection:**
 ```
 Key: MONGODB_URI
-Value: mongodb+srv://prabin:ktmlifecare2025@cluster0.8uds5sw.mongodb.net/clinic_management?retryWrites=true&w=majority
+Value: mongodb+srv://prabinkhokhali89_db_user:gWH0EDUvYHkL0XA3@clinic-management.5g7gvf7.mongodb.net/clinic_management?retryWrites=true&w=majority
 ```
 
 **2. JWT Secret:**
