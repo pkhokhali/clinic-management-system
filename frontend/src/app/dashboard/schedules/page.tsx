@@ -36,6 +36,8 @@ import {
   ToggleButtonGroup,
   Checkbox,
   Divider,
+  Card,
+  CardContent,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -155,6 +157,7 @@ export default function DoctorSchedulesPage() {
   useEffect(() => {
     fetchSchedules();
     fetchDoctors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doctorFilter, activeFilter]);
 
   // Filter schedules
@@ -762,7 +765,7 @@ export default function DoctorSchedulesPage() {
                                 {dayRanges.length === 0 ? (
                                   <Box sx={{ p: 2, textAlign: 'center', bgcolor: 'info.light', borderRadius: 1 }}>
                                     <Typography variant="body2" color="text.secondary">
-                                      Click "Add Time Range" to add a schedule for this day
+                                      Click &quot;Add Time Range&quot; to add a schedule for this day
                                     </Typography>
                                   </Box>
                                 ) : (
