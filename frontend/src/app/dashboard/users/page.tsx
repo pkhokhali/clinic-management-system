@@ -219,7 +219,7 @@ export default function UsersManagementPage() {
       'Admin': 'warning',
       'Doctor': 'primary',
       'Receptionist': 'secondary',
-      'Lab Technician': 'info',
+      'Lab Technician': 'default',
       'Patient': 'success',
     };
     return colors[role] || 'default';
