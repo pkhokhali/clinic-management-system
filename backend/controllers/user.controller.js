@@ -1,4 +1,62 @@
 const User = require('../models/User.model');
+const bcrypt = require('bcryptjs');
+
+// @desc    Create user (Admin/Super Admin only)
+// @route   POST /api/users
+// @access  Private (Admin, Super Admin)
+exports.createUser = async (req, res) => {
+  try {
+    const { firstName, lastName, email, phone, password, role, dateOfBirth, gender, address, specialization, licenseNumber, bloodGroup, emergencyContact } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email'
+      });
+    }
+
+    // Create user
+    const user = await User.create({
+      firstName,
+      lastName,
+      email: email.toLowerCase(),
+      phone,
+      password: password || 'Default@123', // Default password if not provided
+      role: role || 'Patient',
+      dateOfBirth,
+      gender,
+      address,
+      specialization,
+      licenseNumber,
+      bloodGroup,
+      emergencyContact
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      data: {
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          isActive: user.isActive
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error creating user',
+      error: error.message
+    });
+  }
+};
 
 // @desc    Get all users
 // @route   GET /api/users
