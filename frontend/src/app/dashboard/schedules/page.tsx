@@ -94,11 +94,18 @@ export default function DoctorSchedulesPage() {
     doctor: '',
     isRecurring: true,
     selectedDays: [] as number[], // Array of selected day indices
-    daySchedules: {} as { [key: number]: { startTime: string; endTime: string } }, // Time ranges for each day
+    daySchedules: {} as { 
+      [key: number]: Array<{ 
+        id: string; // Unique ID for each time range
+        startTime: string; 
+        endTime: string; 
+        slotDuration: number;
+      }> 
+    }, // Multiple time ranges for each day
     specificDate: '',
-    startTime: '09:00', // Default time (used when adding new days)
-    endTime: '17:00', // Default time (used when adding new days)
-    slotDuration: 30,
+    startTime: '09:00', // Default time (used when adding new time ranges)
+    endTime: '17:00', // Default time (used when adding new time ranges)
+    slotDuration: 30, // Default slot duration
     isActive: true,
     effectiveFrom: new Date().toISOString().split('T')[0],
     effectiveUntil: '',
@@ -171,14 +178,16 @@ export default function DoctorSchedulesPage() {
 
     const newDaySchedules = { ...formData.daySchedules };
     
-    // If adding a day, set default times
+    // If adding a day, add a default time range
     if (!formData.selectedDays.includes(dayIndex)) {
-      newDaySchedules[dayIndex] = {
+      newDaySchedules[dayIndex] = [{
+        id: `day-${dayIndex}-${Date.now()}`,
         startTime: formData.startTime,
         endTime: formData.endTime,
-      };
+        slotDuration: formData.slotDuration,
+      }];
     } else {
-      // If removing a day, remove its schedule
+      // If removing a day, remove all its time ranges
       delete newDaySchedules[dayIndex];
     }
 
@@ -189,16 +198,74 @@ export default function DoctorSchedulesPage() {
     });
   };
 
-  // Handle time change for a specific day
-  const handleDayTimeChange = (dayIndex: number, field: 'startTime' | 'endTime', value: string) => {
+  // Add a new time range for a specific day
+  const handleAddTimeRange = (dayIndex: number) => {
+    const currentRanges = formData.daySchedules[dayIndex] || [];
+    const newRange = {
+      id: `day-${dayIndex}-${Date.now()}`,
+      startTime: formData.startTime,
+      endTime: formData.endTime,
+      slotDuration: formData.slotDuration,
+    };
+    
     setFormData({
       ...formData,
       daySchedules: {
         ...formData.daySchedules,
-        [dayIndex]: {
-          ...formData.daySchedules[dayIndex],
-          [field]: value,
+        [dayIndex]: [...currentRanges, newRange],
+      },
+    });
+  };
+
+  // Remove a time range for a specific day
+  const handleRemoveTimeRange = (dayIndex: number, rangeId: string) => {
+    const currentRanges = formData.daySchedules[dayIndex] || [];
+    const updatedRanges = currentRanges.filter(range => range.id !== rangeId);
+    
+    if (updatedRanges.length === 0) {
+      // If no ranges left, remove the day from selected days
+      setFormData({
+        ...formData,
+        selectedDays: formData.selectedDays.filter(d => d !== dayIndex),
+        daySchedules: {
+          ...formData.daySchedules,
+          [dayIndex]: [],
         },
+      });
+    } else {
+      setFormData({
+        ...formData,
+        daySchedules: {
+          ...formData.daySchedules,
+          [dayIndex]: updatedRanges,
+        },
+      });
+    }
+  };
+
+  // Handle time/slot duration change for a specific time range
+  const handleTimeRangeChange = (
+    dayIndex: number,
+    rangeId: string,
+    field: 'startTime' | 'endTime' | 'slotDuration',
+    value: string | number
+  ) => {
+    const currentRanges = formData.daySchedules[dayIndex] || [];
+    const updatedRanges = currentRanges.map(range => {
+      if (range.id === rangeId) {
+        return {
+          ...range,
+          [field]: value,
+        };
+      }
+      return range;
+    });
+    
+    setFormData({
+      ...formData,
+      daySchedules: {
+        ...formData.daySchedules,
+        [dayIndex]: updatedRanges,
       },
     });
   };
@@ -227,13 +294,22 @@ export default function DoctorSchedulesPage() {
         return;
       }
 
-      // Validate that all selected days have time ranges
+      // Validate that all selected days have at least one time range
       if (formData.isRecurring) {
         for (const dayIndex of formData.selectedDays) {
-          if (!formData.daySchedules[dayIndex] || !formData.daySchedules[dayIndex].startTime || !formData.daySchedules[dayIndex].endTime) {
-            setError(`Please set time range for ${DAYS_OF_WEEK[dayIndex]}`);
+          const dayRanges = formData.daySchedules[dayIndex] || [];
+          if (dayRanges.length === 0) {
+            setError(`Please add at least one time range for ${DAYS_OF_WEEK[dayIndex]}`);
             setSubmitting(false);
             return;
+          }
+          // Validate each time range
+          for (const range of dayRanges) {
+            if (!range.startTime || !range.endTime || !range.slotDuration) {
+              setError(`Please complete all time range fields for ${DAYS_OF_WEEK[dayIndex]}`);
+              setSubmitting(false);
+              return;
+            }
           }
         }
       }
@@ -267,29 +343,38 @@ export default function DoctorSchedulesPage() {
         await api.put(`/schedules/${editingSchedule.id || editingSchedule._id}`, payload);
         setSuccess('Schedule updated successfully!');
       } else {
-        // For new schedules, create one entry per selected day
+        // For new schedules, create one entry per day-time-slotDuration combination
         if (formData.isRecurring) {
-          const promises = formData.selectedDays.map(dayIndex => {
-            const payload: any = {
-              doctor: formData.doctor,
-              startTime: formData.daySchedules[dayIndex].startTime,
-              endTime: formData.daySchedules[dayIndex].endTime,
-              slotDuration: formData.slotDuration,
-              isRecurring: true,
-              dayOfWeek: dayIndex,
-              isActive: formData.isActive,
-              effectiveFrom: formData.effectiveFrom || new Date(),
-            };
+          const promises: Promise<any>[] = [];
+          
+          formData.selectedDays.forEach(dayIndex => {
+            const dayRanges = formData.daySchedules[dayIndex] || [];
+            dayRanges.forEach((range) => {
+              const payload: any = {
+                doctor: formData.doctor,
+                startTime: range.startTime,
+                endTime: range.endTime,
+                slotDuration: range.slotDuration,
+                isRecurring: true,
+                dayOfWeek: dayIndex,
+                isActive: formData.isActive,
+                effectiveFrom: formData.effectiveFrom || new Date(),
+              };
 
-            if (formData.effectiveUntil) {
-              payload.effectiveUntil = formData.effectiveUntil;
-            }
+              if (formData.effectiveUntil) {
+                payload.effectiveUntil = formData.effectiveUntil;
+              }
 
-            return api.post('/schedules', payload);
+              promises.push(api.post('/schedules', payload));
+            });
           });
 
           await Promise.all(promises);
-          setSuccess(`Successfully created ${formData.selectedDays.length} schedule(s)!`);
+          const totalSchedules = formData.selectedDays.reduce(
+            (sum, dayIndex) => sum + (formData.daySchedules[dayIndex]?.length || 0),
+            0
+          );
+          setSuccess(`Successfully created ${totalSchedules} schedule(s)!`);
         } else {
           // One-time schedule
           const payload: any = {
@@ -334,10 +419,12 @@ export default function DoctorSchedulesPage() {
       isRecurring: schedule.isRecurring,
       selectedDays: schedule.isRecurring ? [dayOfWeek] : [],
       daySchedules: schedule.isRecurring ? {
-        [dayOfWeek]: {
+        [dayOfWeek]: [{
+          id: `day-${dayOfWeek}-${Date.now()}`,
           startTime: schedule.startTime,
           endTime: schedule.endTime,
-        },
+          slotDuration: schedule.slotDuration || 30,
+        }],
       } : {},
       specificDate: schedule.specificDate
         ? (typeof schedule.specificDate === 'string'
@@ -385,7 +472,7 @@ export default function DoctorSchedulesPage() {
       doctor: '',
       isRecurring: true,
       selectedDays: [],
-      daySchedules: {},
+      daySchedules: {}, // Array of time ranges for each day
       specificDate: '',
       startTime: '09:00',
       endTime: '17:00',
@@ -655,41 +742,99 @@ export default function DoctorSchedulesPage() {
                           Set Time Range for Each Selected Day
                         </Typography>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          {formData.selectedDays.map((dayIndex) => (
-                            <Paper key={dayIndex} sx={{ p: 2, bgcolor: 'background.default' }}>
-                              <Typography variant="body1" sx={{ mb: 1, fontWeight: 'bold' }}>
-                                {DAYS_OF_WEEK[dayIndex]}
-                              </Typography>
-                              <Grid container spacing={2}>
-                                <Grid item xs={12} sm={6}>
-                                  <TextField
-                                    label="Start Time"
-                                    type="time"
-                                    value={formData.daySchedules[dayIndex]?.startTime || formData.startTime}
-                                    onChange={(e) => handleDayTimeChange(dayIndex, 'startTime', e.target.value)}
-                                    fullWidth
-                                    required
+                          {formData.selectedDays.map((dayIndex) => {
+                            const dayRanges = formData.daySchedules[dayIndex] || [];
+                            return (
+                              <Paper key={dayIndex} sx={{ p: 2, bgcolor: 'background.default' }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                                    {DAYS_OF_WEEK[dayIndex]}
+                                  </Typography>
+                                  <Button
                                     size="small"
-                                    InputLabelProps={{ shrink: true }}
-                                    inputProps={{ step: 300 }}
-                                  />
-                                </Grid>
-                                <Grid item xs={12} sm={6}>
-                                  <TextField
-                                    label="End Time"
-                                    type="time"
-                                    value={formData.daySchedules[dayIndex]?.endTime || formData.endTime}
-                                    onChange={(e) => handleDayTimeChange(dayIndex, 'endTime', e.target.value)}
-                                    fullWidth
-                                    required
-                                    size="small"
-                                    InputLabelProps={{ shrink: true }}
-                                    inputProps={{ step: 300 }}
-                                  />
-                                </Grid>
-                              </Grid>
-                            </Paper>
-                          ))}
+                                    startIcon={<AddIcon />}
+                                    onClick={() => handleAddTimeRange(dayIndex)}
+                                    variant="outlined"
+                                  >
+                                    Add Time Range
+                                  </Button>
+                                </Box>
+                                {dayRanges.length === 0 ? (
+                                  <Box sx={{ p: 2, textAlign: 'center', bgcolor: 'info.light', borderRadius: 1 }}>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Click "Add Time Range" to add a schedule for this day
+                                    </Typography>
+                                  </Box>
+                                ) : (
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    {dayRanges.map((range, rangeIndex) => (
+                                      <Card key={range.id} variant="outlined">
+                                        <CardContent>
+                                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
+                                            <Typography variant="subtitle2" color="text.secondary">
+                                              Time Range {rangeIndex + 1}
+                                            </Typography>
+                                            <IconButton
+                                              size="small"
+                                              onClick={() => handleRemoveTimeRange(dayIndex, range.id)}
+                                              color="error"
+                                            >
+                                              <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                          </Box>
+                                          <Grid container spacing={2}>
+                                            <Grid item xs={12} sm={4}>
+                                              <TextField
+                                                label="Start Time"
+                                                type="time"
+                                                value={range.startTime}
+                                                onChange={(e) => handleTimeRangeChange(dayIndex, range.id, 'startTime', e.target.value)}
+                                                fullWidth
+                                                required
+                                                size="small"
+                                                InputLabelProps={{ shrink: true }}
+                                                inputProps={{ step: 300 }}
+                                              />
+                                            </Grid>
+                                            <Grid item xs={12} sm={4}>
+                                              <TextField
+                                                label="End Time"
+                                                type="time"
+                                                value={range.endTime}
+                                                onChange={(e) => handleTimeRangeChange(dayIndex, range.id, 'endTime', e.target.value)}
+                                                fullWidth
+                                                required
+                                                size="small"
+                                                InputLabelProps={{ shrink: true }}
+                                                inputProps={{ step: 300 }}
+                                              />
+                                            </Grid>
+                                            <Grid item xs={12} sm={4}>
+                                              <TextField
+                                                label="Slot Duration (min)"
+                                                type="number"
+                                                value={range.slotDuration}
+                                                onChange={(e) => {
+                                                  const value = parseInt(e.target.value) || 30;
+                                                  const clampedValue = Math.min(Math.max(value, 5), 50);
+                                                  handleTimeRangeChange(dayIndex, range.id, 'slotDuration', clampedValue);
+                                                }}
+                                                fullWidth
+                                                required
+                                                size="small"
+                                                inputProps={{ min: 5, max: 50, step: 5 }}
+                                                helperText="5-50 minutes"
+                                              />
+                                            </Grid>
+                                          </Grid>
+                                        </CardContent>
+                                      </Card>
+                                    ))}
+                                  </Box>
+                                )}
+                              </Paper>
+                            );
+                          })}
                         </Box>
                       </Box>
                     )}
@@ -704,10 +849,10 @@ export default function DoctorSchedulesPage() {
 
                     <Divider sx={{ my: 2 }} />
                     <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                      Default Time (Applied when adding new days)
+                      Default Values (Used when adding new time ranges)
                     </Typography>
                     <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
+                      <Grid item xs={12} sm={4}>
                         <TextField
                           label="Default Start Time"
                           type="time"
@@ -717,10 +862,9 @@ export default function DoctorSchedulesPage() {
                           size="small"
                           InputLabelProps={{ shrink: true }}
                           inputProps={{ step: 300 }}
-                          helperText="Used when adding new days"
                         />
                       </Grid>
-                      <Grid item xs={12} sm={6}>
+                      <Grid item xs={12} sm={4}>
                         <TextField
                           label="Default End Time"
                           type="time"
@@ -730,7 +874,22 @@ export default function DoctorSchedulesPage() {
                           size="small"
                           InputLabelProps={{ shrink: true }}
                           inputProps={{ step: 300 }}
-                          helperText="Used when adding new days"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          label="Default Slot Duration (min)"
+                          type="number"
+                          value={formData.slotDuration}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value) || 30;
+                            const clampedValue = Math.min(Math.max(value, 5), 50);
+                            setFormData({ ...formData, slotDuration: clampedValue });
+                          }}
+                          fullWidth
+                          size="small"
+                          inputProps={{ min: 5, max: 50, step: 5 }}
+                          helperText="5-50 minutes"
                         />
                       </Grid>
                     </Grid>
