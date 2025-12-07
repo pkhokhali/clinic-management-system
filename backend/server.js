@@ -29,6 +29,35 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Root route
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Welcome to Clinic Management System API',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/api/health',
+      authentication: {
+        login: 'POST /api/auth/login',
+        register: 'POST /api/auth/register',
+        getMe: 'GET /api/auth/me',
+        forgotPassword: 'POST /api/auth/forgotpassword',
+        resetPassword: 'PUT /api/auth/resetpassword/:token',
+        updatePassword: 'PUT /api/auth/updatepassword'
+      },
+      appointments: '/api/appointments',
+      medicalRecords: '/api/medical',
+      labServices: '/api/lab',
+      invoices: '/api/invoices',
+      inventory: '/api/inventory',
+      analytics: '/api/analytics',
+      users: '/api/users'
+    },
+    documentation: 'See README.md for detailed API documentation'
+  });
+});
+
 // Health check route
 app.get('/api/health', (req, res) => {
   res.status(200).json({
