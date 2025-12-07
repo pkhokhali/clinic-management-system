@@ -50,7 +50,7 @@ const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ['Super Admin', 'Admin', 'Receptionist', 'Doctor', 'Lab Technician'] },
   { text: 'My Profile', icon: <AccountCircleIcon />, path: '/dashboard/profile', roles: ['Patient'] },
   { text: 'Users Management', icon: <PeopleIcon />, path: '/dashboard/users', roles: ['Super Admin', 'Admin'] },
-  { text: 'Patients', icon: <PeopleIcon />, path: '/dashboard/patients', roles: ['Super Admin', 'Admin', 'Receptionist', 'Doctor'] },
+  { text: 'Patients', icon: <PeopleIcon />, path: '/dashboard/patients', roles: ['Super Admin', 'Admin', 'Receptionist', 'Doctor', 'Patient'] },
   { text: 'Doctor Schedules', icon: <CalendarIcon />, path: '/dashboard/schedules', roles: ['Super Admin', 'Admin'] },
   { text: 'Appointments', icon: <CalendarIcon />, path: '/dashboard/appointments', roles: ['Super Admin', 'Admin', 'Receptionist', 'Patient'] },
   { text: 'My Appointments', icon: <CalendarIcon />, path: '/dashboard/my-appointments', roles: ['Doctor'] },
