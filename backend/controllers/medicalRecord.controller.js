@@ -61,6 +61,106 @@ exports.getMedicalRecords = async (req, res) => {
   }
 };
 
+// @desc    Get single medical record
+// @route   GET /api/medical/records/:id
+// @access  Private
+exports.getMedicalRecord = async (req, res) => {
+  try {
+    const medicalRecord = await MedicalRecord.findById(req.params.id)
+      .populate('patient', 'firstName lastName')
+      .populate('doctor', 'firstName lastName specialization')
+      .populate('appointment')
+      .populate('labRequest')
+      .populate('prescription');
+
+    if (!medicalRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Medical record not found',
+      });
+    }
+
+    // Check access permissions
+    if (
+      req.user.role !== 'Super Admin' &&
+      req.user.role !== 'Admin' &&
+      req.user.role !== 'Receptionist' &&
+      medicalRecord.patient._id.toString() !== req.user.id.toString() &&
+      (req.user.role !== 'Doctor' || medicalRecord.doctor._id.toString() !== req.user.id.toString())
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to access this medical record',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { medicalRecord },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching medical record',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Update medical record
+// @route   PUT /api/medical/records/:id
+// @access  Private (Doctor can edit their own, Admin/Super Admin can edit all)
+exports.updateMedicalRecord = async (req, res) => {
+  try {
+    let medicalRecord = await MedicalRecord.findById(req.params.id);
+
+    if (!medicalRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Medical record not found',
+      });
+    }
+
+    // Check permissions - Doctor can only edit their own records
+    if (
+      req.user.role !== 'Super Admin' &&
+      req.user.role !== 'Admin' &&
+      (req.user.role !== 'Doctor' || medicalRecord.doctor.toString() !== req.user.id.toString())
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this medical record',
+      });
+    }
+
+    // Update medical record
+    medicalRecord = await MedicalRecord.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      }
+    )
+      .populate('patient', 'firstName lastName')
+      .populate('doctor', 'firstName lastName specialization')
+      .populate('appointment')
+      .populate('labRequest')
+      .populate('prescription');
+
+    res.status(200).json({
+      success: true,
+      data: { medicalRecord },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error updating medical record',
+      error: error.message,
+    });
+  }
+};
+
 exports.createPrescription = async (req, res) => {
   try {
     const prescription = await Prescription.create({

@@ -44,6 +44,7 @@ import {
   Add as AddIcon,
   Search as SearchIcon,
   Visibility as VisibilityIcon,
+  Edit as EditIcon,
   Assignment as AssignmentIcon,
   LocalPharmacy as PrescriptionIcon,
   Delete as DeleteIcon,
@@ -133,6 +134,7 @@ export default function MedicalRecordsPage() {
   const [openRecordDialog, setOpenRecordDialog] = useState(false);
   const [openRecordViewDialog, setOpenRecordViewDialog] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
+  const [editingRecord, setEditingRecord] = useState<MedicalRecord | null>(null);
   const [recordFormData, setRecordFormData] = useState({
     patient: '',
     doctor: currentUser?.role === 'Doctor' ? (currentUser.id || '') : '',
@@ -299,7 +301,7 @@ export default function MedicalRecordsPage() {
   // Fetch lab tests and initial data
   useEffect(() => {
     fetchLabTests();
-    if (currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') {
+    if (currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin' || currentUser?.role === 'Doctor') {
       fetchPatients();
     }
     fetchDoctors();
@@ -394,17 +396,20 @@ export default function MedicalRecordsPage() {
     );
   });
 
-  // Handle record submission (with support for combined workflow)
+  // Handle record submission (with support for combined workflow and editing)
   const handleRecordSubmit = async () => {
     try {
       setSubmittingRecord(true);
       setError(null);
       
+      // Check if we're editing
+      const isEditing = editingRecord !== null;
+      
       const hasLabTests = recordFormData.selectedLabTests.length > 0;
       const hasPrescription = recordFormData.prescriptionMedications.length > 0;
       
-      // Use combined endpoint if lab tests or prescription are present
-      if (hasLabTests || hasPrescription) {
+      // For editing, use PUT endpoint
+      if (isEditing) {
         const payload: any = {
           patient: recordFormData.patient,
           doctor: recordFormData.doctor,
@@ -424,51 +429,78 @@ export default function MedicalRecordsPage() {
           };
         }
         
-        // Add lab tests if selected
-        if (hasLabTests) {
-          payload.labTests = recordFormData.selectedLabTests;
-          payload.labPriority = recordFormData.labPriority;
-          if (recordFormData.labInstructions) {
-            payload.labInstructions = recordFormData.labInstructions;
-          }
-        }
-        
-        // Add prescription if medications provided
-        if (hasPrescription) {
-          payload.medications = recordFormData.prescriptionMedications;
-          if (recordFormData.prescriptionNotes) {
-            payload.prescriptionNotes = recordFormData.prescriptionNotes;
-          }
-        }
-        
-        await api.post('/medical/records/complete', payload);
-        setSuccess('Medical record with lab tests and prescription created successfully!');
+        const recordId = editingRecord.id || editingRecord._id;
+        await api.put(`/medical/records/${recordId}`, payload);
+        setSuccess('Medical record updated successfully!');
       } else {
-        // Use regular endpoint if no lab tests or prescription
-        const payload: any = {
-          patient: recordFormData.patient,
-          doctor: recordFormData.doctor,
-          date: recordFormData.date,
-          chiefComplaint: recordFormData.chiefComplaint,
-          historyOfPresentIllness: recordFormData.historyOfPresentIllness,
-          physicalExamination: recordFormData.physicalExamination,
-          diagnosis: recordFormData.diagnosis,
-          treatment: recordFormData.treatment,
-        };
-        
-        if (recordFormData.appointment) payload.appointment = recordFormData.appointment;
-        if (recordFormData.followUpDate) {
-          payload.followUp = {
-            date: recordFormData.followUpDate,
-            notes: recordFormData.followUpNotes,
+        // Use combined endpoint if lab tests or prescription are present
+        if (hasLabTests || hasPrescription) {
+          const payload: any = {
+            patient: recordFormData.patient,
+            doctor: recordFormData.doctor,
+            date: recordFormData.date,
+            chiefComplaint: recordFormData.chiefComplaint,
+            historyOfPresentIllness: recordFormData.historyOfPresentIllness,
+            physicalExamination: recordFormData.physicalExamination,
+            diagnosis: recordFormData.diagnosis,
+            treatment: recordFormData.treatment,
           };
+          
+          if (recordFormData.appointment) payload.appointment = recordFormData.appointment;
+          if (recordFormData.followUpDate) {
+            payload.followUp = {
+              date: recordFormData.followUpDate,
+              notes: recordFormData.followUpNotes,
+            };
+          }
+          
+          // Add lab tests if selected
+          if (hasLabTests) {
+            payload.labTests = recordFormData.selectedLabTests;
+            payload.labPriority = recordFormData.labPriority;
+            if (recordFormData.labInstructions) {
+              payload.labInstructions = recordFormData.labInstructions;
+            }
+          }
+          
+          // Add prescription if medications provided
+          if (hasPrescription) {
+            payload.medications = recordFormData.prescriptionMedications;
+            if (recordFormData.prescriptionNotes) {
+              payload.prescriptionNotes = recordFormData.prescriptionNotes;
+            }
+          }
+          
+          await api.post('/medical/records/complete', payload);
+          setSuccess('Medical record with lab tests and prescription created successfully!');
+        } else {
+          // Use regular endpoint if no lab tests or prescription
+          const payload: any = {
+            patient: recordFormData.patient,
+            doctor: recordFormData.doctor,
+            date: recordFormData.date,
+            chiefComplaint: recordFormData.chiefComplaint,
+            historyOfPresentIllness: recordFormData.historyOfPresentIllness,
+            physicalExamination: recordFormData.physicalExamination,
+            diagnosis: recordFormData.diagnosis,
+            treatment: recordFormData.treatment,
+          };
+          
+          if (recordFormData.appointment) payload.appointment = recordFormData.appointment;
+          if (recordFormData.followUpDate) {
+            payload.followUp = {
+              date: recordFormData.followUpDate,
+              notes: recordFormData.followUpNotes,
+            };
+          }
+          
+          await api.post('/medical/records', payload);
+          setSuccess('Medical record created successfully!');
         }
-        
-        await api.post('/medical/records', payload);
-        setSuccess('Medical record created successfully!');
       }
       
       setOpenRecordDialog(false);
+      setEditingRecord(null);
       resetRecordForm();
       fetchRecords();
       if (hasLabTests) {
@@ -596,6 +628,7 @@ export default function MedicalRecordsPage() {
 
   // Reset forms
   const resetRecordForm = () => {
+    setEditingRecord(null);
     setRecordFormData({
       patient: '',
       doctor: currentUser?.role === 'Doctor' ? (currentUser.id || '') : '',
@@ -649,6 +682,38 @@ export default function MedicalRecordsPage() {
   const handleViewRecord = (record: MedicalRecord) => {
     setSelectedRecord(record);
     setOpenRecordViewDialog(true);
+  };
+
+  // Edit record
+  const handleEditRecord = (record: MedicalRecord) => {
+    setEditingRecord(record);
+    const patientId = typeof record.patient === 'object' ? record.patient.id || record.patient._id : record.patient;
+    const doctorId = typeof record.doctor === 'object' ? record.doctor.id || record.doctor._id : record.doctor;
+    const appointmentId = typeof record.appointment === 'object' ? record.appointment.id || record.appointment._id : record.appointment;
+    
+    setRecordFormData({
+      patient: patientId || '',
+      doctor: doctorId || '',
+      appointment: appointmentId || '',
+      date: record.date
+        ? (typeof record.date === 'string' ? record.date.split('T')[0] : new Date(record.date).toISOString().split('T')[0])
+        : new Date().toISOString().split('T')[0],
+      chiefComplaint: record.chiefComplaint || '',
+      historyOfPresentIllness: record.historyOfPresentIllness || '',
+      physicalExamination: record.physicalExamination || '',
+      diagnosis: record.diagnosis || [],
+      treatment: record.treatment || '',
+      followUpDate: record.followUp?.date
+        ? (typeof record.followUp.date === 'string' ? record.followUp.date.split('T')[0] : new Date(record.followUp.date).toISOString().split('T')[0])
+        : '',
+      followUpNotes: record.followUp?.notes || '',
+      selectedLabTests: [],
+      labPriority: 'Routine' as 'Routine' | 'Urgent' | 'Stat',
+      labInstructions: '',
+      prescriptionMedications: [],
+      prescriptionNotes: '',
+    });
+    setOpenRecordDialog(true);
   };
 
   // View prescription
@@ -826,15 +891,28 @@ export default function MedicalRecordsPage() {
                             )}
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="View Details">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleViewRecord(record)}
-                                color="primary"
-                              >
-                                <VisibilityIcon />
-                              </IconButton>
-                            </Tooltip>
+                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                              <Tooltip title="View Details">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleViewRecord(record)}
+                                  color="primary"
+                                >
+                                  <VisibilityIcon />
+                                </IconButton>
+                              </Tooltip>
+                              {(currentUser?.role === 'Doctor' || currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+                                <Tooltip title="Edit Record">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleEditRecord(record)}
+                                    color="primary"
+                                  >
+                                    <EditIcon />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                            </Box>
                           </TableCell>
                         </TableRow>
                       );
@@ -922,8 +1000,8 @@ export default function MedicalRecordsPage() {
 
           {/* Add Medical Record Dialog */}
           {canCreate && (
-            <Dialog open={openRecordDialog} onClose={() => { setOpenRecordDialog(false); resetRecordForm(); }} maxWidth="md" fullWidth scroll="paper">
-              <DialogTitle>Add Medical Record</DialogTitle>
+            <Dialog open={openRecordDialog} onClose={() => { setOpenRecordDialog(false); setEditingRecord(null); resetRecordForm(); }} maxWidth="md" fullWidth scroll="paper">
+              <DialogTitle>{editingRecord ? 'Edit Medical Record' : 'Add Medical Record'}</DialogTitle>
               <DialogContent>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
                   {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
@@ -1232,7 +1310,7 @@ export default function MedicalRecordsPage() {
                 </Box>
               </DialogContent>
               <DialogActions>
-                <Button onClick={() => { setOpenRecordDialog(false); resetRecordForm(); }} disabled={submittingRecord}>
+                <Button onClick={() => { setOpenRecordDialog(false); setEditingRecord(null); resetRecordForm(); }} disabled={submittingRecord}>
                   Cancel
                 </Button>
                 <Button
