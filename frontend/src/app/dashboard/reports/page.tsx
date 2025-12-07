@@ -70,7 +70,10 @@ export default function ReportsPage() {
     invoices: RevenueInvoice[];
     totalRevenue: number;
     totalPaid: number;
+    outstanding: number;
     count: number;
+    paidCount: number;
+    pendingCount: number;
   } | null>(null);
   
   // Date filters
@@ -265,9 +268,12 @@ export default function ReportsPage() {
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Box>
                           <Typography color="text.secondary" gutterBottom>
-                            Paid Invoices
+                            Paid Revenue
                           </Typography>
-                          <Typography variant="h4">{stats.revenue.invoices}</Typography>
+                          <Typography variant="h4">{formatCurrency(stats.revenue.paid || 0)}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {stats.revenue.paidInvoices || 0} paid invoice(s)
+                          </Typography>
                         </Box>
                         <MoneyIcon sx={{ fontSize: 40, color: 'primary.main' }} />
                       </Box>
@@ -330,22 +336,31 @@ export default function ReportsPage() {
               <>
                 <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6} md={3}>
                       <Typography variant="body2" color="text.secondary">Total Revenue</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
                         {formatCurrency(revenueData.totalRevenue)}
                       </Typography>
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6} md={3}>
                       <Typography variant="body2" color="text.secondary">Total Paid</Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'success.main' }}>
                         {formatCurrency(revenueData.totalPaid)}
                       </Typography>
                     </Grid>
-                    <Grid item xs={12} sm={4}>
-                      <Typography variant="body2" color="text.secondary">Number of Invoices</Typography>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Typography variant="body2" color="text.secondary">Outstanding</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: (revenueData.outstanding || 0) > 0 ? 'error.main' : 'success.main' }}>
+                        {formatCurrency(revenueData.outstanding || 0)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Typography variant="body2" color="text.secondary">Total Invoices</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
                         {revenueData.count}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {revenueData.paidCount || 0} paid, {revenueData.pendingCount || 0} pending
                       </Typography>
                     </Grid>
                   </Grid>
