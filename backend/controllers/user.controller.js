@@ -60,13 +60,33 @@ exports.createUser = async (req, res) => {
 
 // @desc    Get all users
 // @route   GET /api/users
-// @access  Private (Admin, Super Admin)
+// @access  Private (Admin, Super Admin, Doctor for viewing patients)
 exports.getUsers = async (req, res) => {
   try {
     const { role, isActive } = req.query;
     const query = {};
     
-    if (role) query.role = role;
+    // Role-based access:
+    // - Super Admin, Admin: Can view all users
+    // - Doctor: Can only view patients (when role=Patient filter is used)
+    // - Other roles: Not authorized
+    if (req.user.role === 'Doctor') {
+      // Doctors can only view patients
+      if (role && role !== 'Patient') {
+        return res.status(403).json({
+          success: false,
+          message: 'Doctors can only view patients',
+        });
+      }
+      query.role = 'Patient'; // Force Patient role for doctors
+    } else if (req.user.role !== 'Super Admin' && req.user.role !== 'Admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view users',
+      });
+    }
+    
+    if (role && req.user.role !== 'Doctor') query.role = role; // Apply role filter for admin
     if (isActive !== undefined) query.isActive = isActive === 'true';
 
     const users = await User.find(query)

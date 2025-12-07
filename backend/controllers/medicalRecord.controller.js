@@ -1,13 +1,24 @@
 const MedicalRecord = require('../models/MedicalRecord.model');
 const Prescription = require('../models/Prescription.model');
 const LabRequest = require('../models/LabRequest.model');
+const Appointment = require('../models/Appointment.model');
 
 exports.createMedicalRecord = async (req, res) => {
   try {
+    const { appointment } = req.body;
+    
     const medicalRecord = await MedicalRecord.create({
       ...req.body,
       doctor: req.user.id,
     });
+    
+    // Update appointment status to "Completed" if appointment is linked
+    if (appointment) {
+      await Appointment.findByIdAndUpdate(appointment, {
+        status: 'Completed',
+      });
+    }
+    
     const populated = await MedicalRecord.findById(medicalRecord._id)
       .populate('patient', 'firstName lastName')
       .populate('doctor', 'firstName lastName specialization');
@@ -135,6 +146,13 @@ exports.createCompleteRecord = async (req, res) => {
     const medicalRecord = await MedicalRecord.create(medicalRecordData);
     let labRequest = null;
     let prescription = null;
+    
+    // Update appointment status to "Completed" if appointment is linked
+    if (appointment) {
+      await Appointment.findByIdAndUpdate(appointment, {
+        status: 'Completed',
+      });
+    }
 
     // Create lab request if lab tests are provided
     if (labTests && labTests.length > 0) {

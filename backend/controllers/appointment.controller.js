@@ -148,14 +148,58 @@ exports.createAppointment = async (req, res) => {
   }
 };
 
+// Helper function to auto-update appointments to "No Show" if date has passed
+async function updateExpiredAppointments() {
+  try {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    today.setHours(0, 0, 0, 0);
+    
+    // Find appointments that are past their date/time and still Scheduled or Confirmed
+    const expiredAppointments = await Appointment.find({
+      status: { $in: ['Scheduled', 'Confirmed'] },
+    });
+    
+    // Update each expired appointment
+    for (const appointment of expiredAppointments) {
+      const appointmentDate = new Date(appointment.appointmentDate);
+      const appointmentDateOnly = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
+      appointmentDateOnly.setHours(0, 0, 0, 0);
+      
+      // Check if appointment date has passed
+      if (appointmentDateOnly < today) {
+        // Appointment date is in the past
+        appointment.status = 'No Show';
+        await appointment.save();
+      } else if (appointmentDateOnly.getTime() === today.getTime()) {
+        // Appointment is today - check if time has passed
+        const [hour, minute] = appointment.appointmentTime.split(':').map(Number);
+        const appointmentDateTime = new Date(appointmentDate);
+        appointmentDateTime.setHours(hour, minute, 0, 0);
+        
+        if (appointmentDateTime < now) {
+          appointment.status = 'No Show';
+          await appointment.save();
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error updating expired appointments:', error);
+    // Don't throw error - this is a background operation
+  }
+}
+
 // @desc    Get all appointments
 // @route   GET /api/appointments
 // @access  Private
 exports.getAppointments = async (req, res) => {
   try {
+    // Auto-update expired appointments to "No Show"
+    await updateExpiredAppointments();
+    
     const { status, patient, doctor, startDate, endDate } = req.query;
     const query = {};
-
+    
     if (req.user.role === 'Patient') {
       query.patient = req.user.id;
     } else if (req.user.role === 'Doctor') {
@@ -165,19 +209,19 @@ exports.getAppointments = async (req, res) => {
     } else if (doctor) {
       query.doctor = doctor;
     }
-
+    
     if (status) query.status = status;
     if (startDate || endDate) {
       query.appointmentDate = {};
       if (startDate) query.appointmentDate.$gte = new Date(startDate);
       if (endDate) query.appointmentDate.$lte = new Date(endDate);
     }
-
+    
     const appointments = await Appointment.find(query)
       .populate('patient', 'firstName lastName email phone')
       .populate('doctor', 'firstName lastName specialization')
       .sort({ appointmentDate: 1, appointmentTime: 1 });
-
+    
     res.status(200).json({
       success: true,
       count: appointments.length,
@@ -197,7 +241,10 @@ exports.getAppointments = async (req, res) => {
 // @access  Private
 exports.getAppointment = async (req, res) => {
   try {
-    const appointment = await Appointment.findById(req.params.id)
+    // Auto-update expired appointments to "No Show"
+    await updateExpiredAppointments();
+    
+    let appointment = await Appointment.findById(req.params.id)
       .populate('patient', 'firstName lastName email phone dateOfBirth gender bloodGroup')
       .populate('doctor', 'firstName lastName specialization licenseNumber')
       .populate('createdBy', 'firstName lastName');
@@ -207,6 +254,35 @@ exports.getAppointment = async (req, res) => {
         success: false,
         message: 'Appointment not found',
       });
+    }
+    
+    // Check if this specific appointment needs status update
+    if (appointment.status === 'Scheduled' || appointment.status === 'Confirmed') {
+      const now = new Date();
+      const appointmentDate = new Date(appointment.appointmentDate);
+      const appointmentDateOnly = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
+      appointmentDateOnly.setHours(0, 0, 0, 0);
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      today.setHours(0, 0, 0, 0);
+      
+      if (appointmentDateOnly < today) {
+        appointment.status = 'No Show';
+        await appointment.save();
+      } else if (appointmentDateOnly.getTime() === today.getTime()) {
+        const [hour, minute] = appointment.appointmentTime.split(':').map(Number);
+        const appointmentDateTime = new Date(appointmentDate);
+        appointmentDateTime.setHours(hour, minute, 0, 0);
+        if (appointmentDateTime < now) {
+          appointment.status = 'No Show';
+          await appointment.save();
+        }
+      }
+      
+      // Re-fetch to get updated status
+      appointment = await Appointment.findById(req.params.id)
+        .populate('patient', 'firstName lastName email phone dateOfBirth gender bloodGroup')
+        .populate('doctor', 'firstName lastName specialization licenseNumber')
+        .populate('createdBy', 'firstName lastName');
     }
 
     // Check access permissions

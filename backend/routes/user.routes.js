@@ -14,7 +14,7 @@ router.use(protect);
 
 router
   .route('/')
-  .get(authorize('Super Admin', 'Admin'), getUsers)
+  .get(getUsers) // Authorization handled in controller based on role
   .post(authorize('Super Admin', 'Admin'), createUser);
 
 router
