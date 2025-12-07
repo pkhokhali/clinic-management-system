@@ -62,5 +62,6 @@ const medicalRecordSchema = new mongoose.Schema({
 
 medicalRecordSchema.index({ patient: 1, date: -1 });
 medicalRecordSchema.index({ doctor: 1, date: -1 });
+medicalRecordSchema.index({ 'followUp.date': 1 }); // Index for follow-up date queries
 
 module.exports = mongoose.model('MedicalRecord', medicalRecordSchema);

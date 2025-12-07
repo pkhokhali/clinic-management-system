@@ -34,6 +34,7 @@ import {
   Settings as SettingsIcon,
   ExitToApp as ExitToAppIcon,
   AccountCircle as AccountCircleIcon,
+  EventAvailable as EventAvailableIcon,
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -53,6 +54,7 @@ const menuItems = [
   { text: 'Doctor Schedules', icon: <CalendarIcon />, path: '/dashboard/schedules', roles: ['Super Admin', 'Admin'] },
   { text: 'Appointments', icon: <CalendarIcon />, path: '/dashboard/appointments', roles: ['Super Admin', 'Admin', 'Receptionist', 'Patient'] },
   { text: 'My Appointments', icon: <CalendarIcon />, path: '/dashboard/my-appointments', roles: ['Doctor'] },
+  { text: 'Follow-up Appointments', icon: <EventAvailableIcon />, path: '/dashboard/follow-ups', roles: ['Super Admin', 'Admin', 'Receptionist'] },
   { text: 'Medical Records', icon: <AssignmentIcon />, path: '/dashboard/medical-records', roles: ['Super Admin', 'Admin', 'Doctor', 'Receptionist'] },
   { text: 'Laboratory', icon: <ScienceIcon />, path: '/dashboard/laboratory', roles: ['Super Admin', 'Admin', 'Doctor', 'Lab Technician', 'Receptionist'] },
   { text: 'Billing', icon: <ReceiptIcon />, path: '/dashboard/billing', roles: ['Super Admin', 'Admin', 'Receptionist'] },

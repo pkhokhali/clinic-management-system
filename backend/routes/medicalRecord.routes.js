@@ -4,6 +4,7 @@ const {
   getMedicalRecords,
   getMedicalRecord,
   updateMedicalRecord,
+  getFollowUpAppointments,
   createPrescription,
   getPrescriptions,
   createCompleteRecord,
@@ -18,6 +19,10 @@ router
   .route('/records')
   .get(getMedicalRecords)
   .post(authorize('Doctor', 'Super Admin', 'Admin'), createMedicalRecord);
+
+router
+  .route('/records/follow-ups')
+  .get(authorize('Super Admin', 'Admin', 'Receptionist'), getFollowUpAppointments);
 
 router
   .route('/records/:id')

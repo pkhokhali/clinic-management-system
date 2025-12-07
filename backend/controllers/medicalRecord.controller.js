@@ -61,6 +61,60 @@ exports.getMedicalRecords = async (req, res) => {
   }
 };
 
+// @desc    Get follow-up appointments (medical records with follow-up dates)
+// @route   GET /api/medical/records/follow-ups
+// @access  Private (Super Admin, Admin, Receptionist)
+exports.getFollowUpAppointments = async (req, res) => {
+  try {
+    const { startDate, endDate, past } = req.query;
+    const query = {
+      'followUp.date': { $exists: true, $ne: null },
+    };
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Filter by date range if provided
+    if (startDate || endDate) {
+      query['followUp.date'] = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        query['followUp.date'].$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query['followUp.date'].$lte = end;
+      }
+    } else if (past === 'true') {
+      // Get past follow-ups
+      query['followUp.date'] = { $lt: today };
+    } else {
+      // Default: get upcoming and today's follow-ups
+      query['followUp.date'] = { $gte: today };
+    }
+
+    const medicalRecords = await MedicalRecord.find(query)
+      .populate('patient', 'firstName lastName email phone')
+      .populate('doctor', 'firstName lastName specialization')
+      .populate('appointment')
+      .sort({ 'followUp.date': 1 }); // Sort by follow-up date ascending
+    
+    res.status(200).json({ 
+      success: true, 
+      count: medicalRecords.length, 
+      data: { followUpAppointments: medicalRecords } 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching follow-up appointments', 
+      error: error.message 
+    });
+  }
+};
+
 // @desc    Get single medical record
 // @route   GET /api/medical/records/:id
 // @access  Private

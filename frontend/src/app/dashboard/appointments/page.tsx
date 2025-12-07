@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import ProtectedRoute from '@/middleware/auth.middleware';
 import {
@@ -212,6 +213,41 @@ export default function AppointmentsPage() {
     fetchDoctors();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, doctorFilter]);
+
+  // Handle URL parameters from follow-up page
+  useEffect(() => {
+    const patientParam = searchParams?.get('patient');
+    const doctorParam = searchParams?.get('doctor');
+    const dateParam = searchParams?.get('date');
+    const reasonParam = searchParams?.get('reason');
+
+    if (patientParam || doctorParam || dateParam || reasonParam) {
+      setFormData({
+        patient: patientParam || '',
+        doctor: doctorParam || '',
+        appointmentDate: dateParam || '',
+        appointmentTime: '',
+        reason: reasonParam || '',
+        notes: '',
+        status: 'Scheduled',
+      });
+
+      // Fetch available dates and time slots if doctor is provided
+      if (doctorParam) {
+        fetchAvailableDates(doctorParam);
+        if (dateParam) {
+          fetchAvailableTimeSlots(doctorParam, dateParam);
+        }
+      }
+
+      // Open the dialog automatically
+      setOpenDialog(true);
+
+      // Clear URL parameters
+      window.history.replaceState({}, '', '/dashboard/appointments');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Filter appointments by search term
   const filteredAppointments = appointments.filter((apt) => {
