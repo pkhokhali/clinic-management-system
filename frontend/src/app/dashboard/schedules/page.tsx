@@ -782,10 +782,16 @@ export default function DoctorSchedulesPage() {
                   label="Slot Duration (minutes)"
                   type="number"
                   value={formData.slotDuration}
-                  onChange={(e) => setFormData({ ...formData, slotDuration: parseInt(e.target.value) || 30 })}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 30;
+                    // Ensure value is within allowed range
+                    const clampedValue = Math.min(Math.max(value, 5), 50);
+                    setFormData({ ...formData, slotDuration: clampedValue });
+                  }}
                   fullWidth
-                  inputProps={{ min: 15, step: 15 }}
-                  helperText="Duration of each appointment slot"
+                  inputProps={{ min: 5, max: 50, step: 5 }}
+                  helperText="Duration of each appointment slot (5-50 minutes)"
+                  error={formData.slotDuration < 5 || formData.slotDuration > 50}
                 />
 
                 <Grid container spacing={2}>

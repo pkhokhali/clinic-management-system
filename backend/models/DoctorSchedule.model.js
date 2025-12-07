@@ -28,7 +28,8 @@ const doctorScheduleSchema = new mongoose.Schema({
   slotDuration: {
     type: Number, // Duration in minutes (default 30)
     default: 30,
-    min: 15,
+    min: 5,
+    max: 50,
   },
   isRecurring: {
     type: Boolean,
