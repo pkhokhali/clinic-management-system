@@ -708,9 +708,12 @@ export default function MedicalRecordsPage() {
       diagnosis: record.diagnosis || [],
       treatment: record.treatment || '',
       followUpDate: record.followUp?.date
-        ? (typeof record.followUp.date === 'string' 
-            ? record.followUp.date.split('T')[0] 
-            : new Date(record.followUp.date as Date).toISOString().split('T')[0])
+        ? (() => {
+            const followUpDate = record.followUp!.date;
+            return typeof followUpDate === 'string' 
+              ? followUpDate.split('T')[0] 
+              : new Date(followUpDate).toISOString().split('T')[0];
+          })()
         : '',
       followUpNotes: record.followUp?.notes || '',
       selectedLabTests: [],
