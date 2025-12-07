@@ -687,15 +687,13 @@ export default function MedicalRecordsPage() {
   // Edit record
   const handleEditRecord = (record: MedicalRecord) => {
     setEditingRecord(record);
-    const patientId = typeof record.patient === 'object' 
-      ? record.patient.id || (record.patient as any)?._id 
-      : record.patient;
-    const doctorId = typeof record.doctor === 'object' 
-      ? record.doctor.id || (record.doctor as any)?._id 
-      : record.doctor;
-    const appointmentId = typeof record.appointment === 'object' 
-      ? record.appointment?.id || (record.appointment as any)?._id 
-      : record.appointment;
+    const patientObj = typeof record.patient === 'object' ? (record.patient as any) : null;
+    const doctorObj = typeof record.doctor === 'object' ? (record.doctor as any) : null;
+    const appointmentObj = typeof record.appointment === 'object' && record.appointment ? (record.appointment as any) : null;
+    
+    const patientId = patientObj ? (patientObj.id || patientObj._id) : record.patient;
+    const doctorId = doctorObj ? (doctorObj.id || doctorObj._id) : record.doctor;
+    const appointmentId = appointmentObj ? (appointmentObj.id || appointmentObj._id) : record.appointment;
     
     setRecordFormData({
       patient: patientId || '',
