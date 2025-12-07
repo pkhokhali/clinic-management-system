@@ -362,14 +362,24 @@ export default function BillingPage() {
       setSubmittingPayment(true);
       setError(null);
       
-      // Calculate balance from the selected invoice, not from the form
-      const totalPaid = selectedInvoice.payments
-        ? selectedInvoice.payments.filter(p => p.status === 'Completed').reduce((sum, p) => sum + p.amount, 0)
+      // Fetch latest invoice data to ensure accurate balance calculation
+      const invoiceResponse = await api.get(`/invoices/${selectedInvoice.id || selectedInvoice._id}`);
+      const latestInvoice = invoiceResponse.data.data.invoice;
+      
+      // Calculate balance from the latest invoice data
+      const totalPaid = latestInvoice.payments
+        ? latestInvoice.payments.filter((p: any) => p.status === 'Completed').reduce((sum: number, p: any) => sum + p.amount, 0)
         : 0;
-      const balance = selectedInvoice.total - totalPaid;
+      const balance = latestInvoice.total - totalPaid;
       
       if (paymentFormData.amount <= 0) {
         setError('Payment amount must be greater than 0');
+        setSubmittingPayment(false);
+        return;
+      }
+      
+      if (balance <= 0) {
+        setError('Invoice is already fully paid');
         setSubmittingPayment(false);
         return;
       }
@@ -498,7 +508,7 @@ export default function BillingPage() {
             )}
           </Box>
 
-          {error && (
+          {error && !openPaymentDialog && !openInvoiceDialog && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
               {error}
             </Alert>
