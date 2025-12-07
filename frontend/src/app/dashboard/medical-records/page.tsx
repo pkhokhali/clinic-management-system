@@ -709,7 +709,7 @@ export default function MedicalRecordsPage() {
       treatment: record.treatment || '',
       followUpDate: record.followUp?.date
         ? (() => {
-            const followUpDate = record.followUp!.date;
+            const followUpDate: string | Date = record.followUp!.date as string | Date;
             return typeof followUpDate === 'string' 
               ? followUpDate.split('T')[0] 
               : new Date(followUpDate).toISOString().split('T')[0];
