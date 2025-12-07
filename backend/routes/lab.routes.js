@@ -9,11 +9,30 @@ const {
   createLabResult,
   getLabResults,
 } = require('../controllers/lab.controller');
+const {
+  createCategory,
+  getCategories,
+  getCategory,
+  updateCategory,
+  deleteCategory,
+} = require('../controllers/labCategory.controller');
 const { protect, authorize } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
 
 router.use(protect);
+
+// Lab Categories routes
+router
+  .route('/categories')
+  .get(getCategories)
+  .post(authorize('Super Admin', 'Admin'), createCategory);
+
+router
+  .route('/categories/:id')
+  .get(getCategory)
+  .put(authorize('Super Admin', 'Admin'), updateCategory)
+  .delete(authorize('Super Admin', 'Admin'), deleteCategory);
 
 // Lab Tests routes
 router

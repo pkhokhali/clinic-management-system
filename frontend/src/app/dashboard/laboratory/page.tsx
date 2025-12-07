@@ -118,6 +118,15 @@ interface LabResult {
   comments?: string;
 }
 
+interface LabCategory {
+  _id?: string;
+  id?: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  createdBy?: string | User;
+}
+
 export default function LaboratoryPage() {
   const { user: currentUser } = useAppSelector((state) => state.auth);
   const [tabValue, setTabValue] = useState(0);
@@ -133,6 +142,10 @@ export default function LaboratoryPage() {
   // Lab Results state
   const [results, setResults] = useState<LabResult[]>([]);
   const [loadingResults, setLoadingResults] = useState(true);
+  
+  // Lab Categories state
+  const [categories, setCategories] = useState<LabCategory[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -160,6 +173,16 @@ export default function LaboratoryPage() {
     isActive: true,
   });
   const [submittingTest, setSubmittingTest] = useState(false);
+  
+  // Dialog states - Categories
+  const [openCategoryDialog, setOpenCategoryDialog] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<LabCategory | null>(null);
+  const [categoryFormData, setCategoryFormData] = useState({
+    name: '',
+    description: '',
+    isActive: true,
+  });
+  const [submittingCategory, setSubmittingCategory] = useState(false);
   
   // Dialog states - Requests
   const [openRequestDialog, setOpenRequestDialog] = useState(false);
@@ -296,6 +319,24 @@ export default function LaboratoryPage() {
     }
   };
 
+  // Fetch lab categories
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      setError(null);
+      const response = await api.get('/lab/categories');
+      const categoriesList = (response.data.data.categories || []).map((cat: any) => ({
+        ...cat,
+        id: cat._id || cat.id,
+      }));
+      setCategories(categoriesList);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to fetch categories');
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
   // Fetch appointments
   const fetchAppointments = async (patientId: string) => {
     try {
@@ -312,6 +353,7 @@ export default function LaboratoryPage() {
 
   useEffect(() => {
     fetchTests();
+    fetchCategories();
     if (currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') {
       fetchPatients();
     }
@@ -324,6 +366,8 @@ export default function LaboratoryPage() {
       fetchRequests();
     } else if (tabValue === 2) {
       fetchResults();
+    } else if (tabValue === 3) {
+      fetchCategories();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabValue, statusFilter, patientFilter]);
@@ -489,6 +533,66 @@ export default function LaboratoryPage() {
     });
   };
 
+  // Category handlers
+  const handleCategorySubmit = async () => {
+    try {
+      setSubmittingCategory(true);
+      setError(null);
+      
+      if (editingCategory) {
+        await api.put(`/lab/categories/${editingCategory.id || editingCategory._id}`, categoryFormData);
+        setSuccess('Category updated successfully!');
+      } else {
+        await api.post('/lab/categories', categoryFormData);
+        setSuccess('Category created successfully!');
+      }
+      
+      setOpenCategoryDialog(false);
+      resetCategoryForm();
+      fetchCategories();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to save category');
+    } finally {
+      setSubmittingCategory(false);
+    }
+  };
+
+  const handleEditCategory = (category: LabCategory) => {
+    setEditingCategory(category);
+    setCategoryFormData({
+      name: category.name,
+      description: category.description || '',
+      isActive: category.isActive !== false,
+    });
+    setOpenCategoryDialog(true);
+  };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (!window.confirm('Are you sure you want to delete this category?')) {
+      return;
+    }
+    
+    try {
+      setError(null);
+      await api.delete(`/lab/categories/${categoryId}`);
+      setSuccess('Category deleted successfully!');
+      fetchCategories();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to delete category');
+    }
+  };
+
+  const resetCategoryForm = () => {
+    setCategoryFormData({
+      name: '',
+      description: '',
+      isActive: true,
+    });
+    setEditingCategory(null);
+  };
+
   // Reset forms
   const resetTestForm = () => {
     setTestFormData({
@@ -602,6 +706,9 @@ export default function LaboratoryPage() {
               <Tab icon={<ScienceIcon />} iconPosition="start" label="Lab Tests" />
               <Tab icon={<AssignmentIcon />} iconPosition="start" label="Lab Requests" />
               <Tab icon={<AssessmentIcon />} iconPosition="start" label="Lab Results" />
+              {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+                <Tab icon={<ScienceIcon />} iconPosition="start" label="Categories" />
+              )}
             </Tabs>
           </Paper>
 
@@ -1034,6 +1141,148 @@ export default function LaboratoryPage() {
             </TableContainer>
           )}
 
+          {/* Categories Tab */}
+          {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && tabValue === 3 && (
+            <TableContainer component={Paper}>
+              {loadingCategories ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                  <CircularProgress />
+                </Box>
+              ) : categories.length === 0 ? (
+                <Box sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography color="text.secondary">No categories found</Typography>
+                </Box>
+              ) : (
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Description</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {categories.map((category) => (
+                      <TableRow key={category.id || category._id} hover>
+                        <TableCell>
+                          <Typography variant="body1" sx={{ textTransform: 'capitalize' }}>
+                            {category.name}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
+                            {category.description || '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={category.isActive ? 'Active' : 'Inactive'}
+                            color={category.isActive ? 'success' : 'default'}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                            <Tooltip title="Edit">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleEditCategory(category)}
+                                color="primary"
+                              >
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDeleteCategory(category.id || category._id || '')}
+                                color="error"
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </TableContainer>
+          )}
+
+          {/* Categories Tab */}
+          {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && tabValue === 3 && (
+            <TableContainer component={Paper}>
+              {loadingCategories ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                  <CircularProgress />
+                </Box>
+              ) : categories.length === 0 ? (
+                <Box sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography color="text.secondary">No categories found</Typography>
+                </Box>
+              ) : (
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Description</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {categories.map((category) => (
+                      <TableRow key={category.id || category._id} hover>
+                        <TableCell>
+                          <Typography variant="body1" sx={{ textTransform: 'capitalize' }}>
+                            {category.name}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
+                            {category.description || '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={category.isActive ? 'Active' : 'Inactive'}
+                            color={category.isActive ? 'success' : 'default'}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                            <Tooltip title="Edit">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleEditCategory(category)}
+                                color="primary"
+                              >
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDeleteCategory(category.id || category._id || '')}
+                                color="error"
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </TableContainer>
+          )}
+
           {/* Add/Edit Lab Test Dialog */}
           {canManageTests && (
             <Dialog open={openTestDialog} onClose={() => { setOpenTestDialog(false); resetTestForm(); }} maxWidth="sm" fullWidth>
@@ -1047,13 +1296,31 @@ export default function LaboratoryPage() {
                     fullWidth
                     required
                   />
-                  <TextField
-                    label="Category"
-                    value={testFormData.category}
-                    onChange={(e) => setTestFormData({ ...testFormData, category: e.target.value })}
-                    fullWidth
-                    required
-                  />
+                  <FormControl fullWidth required>
+                    <InputLabel>Category</InputLabel>
+                    <Select
+                      value={testFormData.category}
+                      label="Category"
+                      onChange={(e) => setTestFormData({ ...testFormData, category: e.target.value })}
+                      renderValue={(value) => value || 'Select category'}
+                    >
+                      {categories.filter(c => c.isActive).map((category) => (
+                        <MenuItem key={category.id || category._id} value={category.name}>
+                          {category.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => {
+                      resetCategoryForm();
+                      setOpenCategoryDialog(true);
+                    }}
+                  >
+                    Add New Category
+                  </Button>
                   <TextField
                     label="Description"
                     value={testFormData.description}
@@ -1463,6 +1730,52 @@ export default function LaboratoryPage() {
               <Button onClick={() => setOpenResultViewDialog(false)}>Close</Button>
             </DialogActions>
           </Dialog>
+
+          {/* Add/Edit Category Dialog */}
+          {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+            <Dialog open={openCategoryDialog} onClose={() => { setOpenCategoryDialog(false); resetCategoryForm(); }} maxWidth="sm" fullWidth>
+              <DialogTitle>{editingCategory ? 'Edit Category' : 'Add Category'}</DialogTitle>
+              <DialogContent>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+                  <TextField
+                    label="Category Name"
+                    value={categoryFormData.name}
+                    onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
+                    fullWidth
+                    required
+                    helperText="Category name will be converted to lowercase"
+                  />
+                  <TextField
+                    label="Description"
+                    value={categoryFormData.description}
+                    onChange={(e) => setCategoryFormData({ ...categoryFormData, description: e.target.value })}
+                    fullWidth
+                    multiline
+                    rows={2}
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={categoryFormData.isActive}
+                        onChange={(e) => setCategoryFormData({ ...categoryFormData, isActive: e.target.checked })}
+                      />
+                    }
+                    label="Active"
+                  />
+                </Box>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => { setOpenCategoryDialog(false); resetCategoryForm(); }}>Cancel</Button>
+                <Button
+                  onClick={handleCategorySubmit}
+                  variant="contained"
+                  disabled={submittingCategory || !categoryFormData.name}
+                >
+                  {submittingCategory ? <CircularProgress size={24} /> : editingCategory ? 'Update' : 'Create'}
+                </Button>
+              </DialogActions>
+            </Dialog>
+          )}
         </Box>
       </DashboardLayout>
     </ProtectedRoute>
