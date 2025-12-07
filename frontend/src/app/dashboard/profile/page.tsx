@@ -896,6 +896,184 @@ export default function PatientProfilePage() {
               <Button onClick={() => setOpenLabRequestDialog(false)}>Close</Button>
             </DialogActions>
           </Dialog>
+
+          {/* View Invoice Dialog */}
+          <Dialog open={openInvoiceDialog} onClose={() => setOpenInvoiceDialog(false)} maxWidth="md" fullWidth scroll="paper">
+            <DialogTitle>Invoice Details</DialogTitle>
+            <DialogContent>
+              {selectedInvoice && (() => {
+                const totalPaid = selectedInvoice.payments
+                  ? selectedInvoice.payments.filter((p: any) => p.status === 'Completed').reduce((sum: number, p: any) => sum + p.amount, 0)
+                  : 0;
+                const outstandingAmount = selectedInvoice.total - totalPaid;
+                
+                return (
+                  <Box sx={{ pt: 2 }}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="subtitle2" color="text.secondary">Invoice Number</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                          {selectedInvoice.invoiceNumber}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="subtitle2" color="text.secondary">Invoice Date</Typography>
+                        <Typography variant="body1">
+                          {selectedInvoice.invoiceDate
+                            ? (typeof selectedInvoice.invoiceDate === 'string'
+                                ? new Date(selectedInvoice.invoiceDate).toLocaleDateString()
+                                : selectedInvoice.invoiceDate.toLocaleDateString())
+                            : 'N/A'}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+                        <Chip
+                          label={selectedInvoice.status}
+                          size="small"
+                          color={getStatusColor(selectedInvoice.status)}
+                        />
+                      </Grid>
+                      {selectedInvoice.dueDate && (
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="subtitle2" color="text.secondary">Due Date</Typography>
+                          <Typography variant="body1">
+                            {typeof selectedInvoice.dueDate === 'string'
+                              ? new Date(selectedInvoice.dueDate).toLocaleDateString()
+                              : selectedInvoice.dueDate.toLocaleDateString()}
+                          </Typography>
+                        </Grid>
+                      )}
+                      <Grid item xs={12}>
+                        <Divider sx={{ my: 2 }} />
+                        <Typography variant="h6" sx={{ mb: 2 }}>Invoice Items</Typography>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Type</TableCell>
+                                <TableCell>Description</TableCell>
+                                <TableCell>Quantity</TableCell>
+                                <TableCell>Unit Price</TableCell>
+                                <TableCell align="right">Total</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {selectedInvoice.items?.map((item, index) => (
+                                <TableRow key={index}>
+                                  <TableCell>{item.itemType}</TableCell>
+                                  <TableCell>{item.description}</TableCell>
+                                  <TableCell>{item.quantity}</TableCell>
+                                  <TableCell>{formatCurrency(item.unitPrice)}</TableCell>
+                                  <TableCell align="right">{formatCurrency(item.total)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Divider sx={{ my: 2 }} />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">Subtotal</Typography>
+                        <Typography variant="body1">{formatCurrency(selectedInvoice.subtotal)}</Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">Discount</Typography>
+                        <Typography variant="body1">{formatCurrency(selectedInvoice.discount || 0)}</Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">Tax</Typography>
+                        <Typography variant="body1">{formatCurrency(selectedInvoice.tax || 0)}</Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">Total Amount</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                          {formatCurrency(selectedInvoice.total)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Divider sx={{ my: 2 }} />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">Clear Amount (Paid)</Typography>
+                        <Typography variant="h6" sx={{ color: 'success.main', fontWeight: 'bold' }}>
+                          {formatCurrency(totalPaid)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">Outstanding Amount</Typography>
+                        <Typography variant="h6" sx={{ color: outstandingAmount > 0 ? 'error.main' : 'success.main', fontWeight: 'bold' }}>
+                          {formatCurrency(outstandingAmount)}
+                        </Typography>
+                      </Grid>
+                      {selectedInvoice.payments && selectedInvoice.payments.length > 0 && (
+                        <>
+                          <Grid item xs={12}>
+                            <Divider sx={{ my: 2 }} />
+                            <Typography variant="h6" sx={{ mb: 2 }}>Payment History</Typography>
+                            {selectedInvoice.payments.map((payment: any, index: number) => (
+                              <Card key={index} sx={{ mb: 1 }}>
+                                <CardContent>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={6} sm={3}>
+                                      <Typography variant="body2" color="text.secondary">Amount</Typography>
+                                      <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                                        {formatCurrency(payment.amount)}
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sm={3}>
+                                      <Typography variant="body2" color="text.secondary">Method</Typography>
+                                      <Typography variant="body1">{payment.paymentMethod}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sm={3}>
+                                      <Typography variant="body2" color="text.secondary">Date</Typography>
+                                      <Typography variant="body1">
+                                        {payment.paymentDate
+                                          ? (typeof payment.paymentDate === 'string'
+                                              ? new Date(payment.paymentDate).toLocaleDateString()
+                                              : new Date(payment.paymentDate).toLocaleDateString())
+                                          : 'N/A'}
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sm={3}>
+                                      <Typography variant="body2" color="text.secondary">Status</Typography>
+                                      <Chip
+                                        label={payment.status}
+                                        size="small"
+                                        color={payment.status === 'Completed' ? 'success' : 'default'}
+                                      />
+                                    </Grid>
+                                    {payment.transactionId && (
+                                      <Grid item xs={12}>
+                                        <Typography variant="body2" color="text.secondary">Transaction ID</Typography>
+                                        <Typography variant="body2">{payment.transactionId}</Typography>
+                                      </Grid>
+                                    )}
+                                  </Grid>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </Grid>
+                        </>
+                      )}
+                      {selectedInvoice.notes && (
+                        <Grid item xs={12}>
+                          <Divider sx={{ my: 2 }} />
+                          <Typography variant="body2" color="text.secondary">Notes</Typography>
+                          <Typography variant="body1">{selectedInvoice.notes}</Typography>
+                        </Grid>
+                      )}
+                    </Grid>
+                  </Box>
+                );
+              })()}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setOpenInvoiceDialog(false)}>Close</Button>
+            </DialogActions>
+          </Dialog>
           
           {/* View Prescription Dialog */}
           <Dialog open={openPrescriptionDialog} onClose={() => setOpenPrescriptionDialog(false)} maxWidth="md" fullWidth>
