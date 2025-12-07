@@ -89,7 +89,12 @@ export default function UsersManagementPage() {
       }
       
       const response = await api.get(`/users?${params.toString()}`);
-      setUsers(response.data.data.users || []);
+      // Map backend _id to id for frontend compatibility
+      const usersList = (response.data.data.users || []).map((user: any) => ({
+        ...user,
+        id: user._id || user.id,
+      }));
+      setUsers(usersList);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to fetch users');
     } finally {
@@ -120,7 +125,7 @@ export default function UsersManagementPage() {
       
       if (editingUser) {
         // Update existing user
-        await api.put(`/users/${editingUser.id || (editingUser as any)._id}`, {
+        await api.put(`/users/${editingUser.id}`, {
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
@@ -343,11 +348,11 @@ export default function UsersManagementPage() {
                             <EditIcon />
                           </IconButton>
                         </Tooltip>
-                        {(user.id || user._id) !== (currentUser?.id || (currentUser as any)?._id) && (
+                        {user.id !== currentUser?.id && (
                           <Tooltip title="Deactivate">
                             <IconButton
                               size="small"
-                              onClick={() => handleDelete(user.id || (user as any)._id)}
+                              onClick={() => handleDelete(user.id)}
                               color="error"
                             >
                               <DeleteIcon />
