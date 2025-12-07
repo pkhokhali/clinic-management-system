@@ -69,30 +69,38 @@ exports.createLabRequest = async (req, res) => {
 
 exports.getLabRequests = async (req, res) => {
   try {
-    const { status, patient, doctor } = req.query;
+    const { status, patient, doctor, isBilled } = req.query;
     const query = {};
     
     // Role-based visibility:
     // - Patient: own requests only
     // - Doctor: own requests only
-    // - Lab Technician: all requests (can filter by patient)
-    // - Admin, Super Admin, Receptionist: all requests
+    // - Lab Technician: only billed requests (isBilled = true)
+    // - Admin, Super Admin, Receptionist: all requests (can filter by isBilled)
     if (req.user.role === 'Patient') {
       query.patient = req.user.id;
     } else if (req.user.role === 'Doctor') {
       query.doctor = req.user.id;
+    } else if (req.user.role === 'Lab Technician') {
+      // Lab Technician can only see billed requests
+      query.isBilled = true;
     }
-    // Lab Technician, Admin, Super Admin, Receptionist can see all
+    // Admin, Super Admin, Receptionist can see all
     
     if (patient) query.patient = patient;
     if (doctor) query.doctor = doctor;
     if (status) query.status = status;
+    // Allow filtering by billing status for Admin/Super Admin/Receptionist
+    if (isBilled !== undefined && (req.user.role === 'Super Admin' || req.user.role === 'Admin' || req.user.role === 'Receptionist')) {
+      query.isBilled = isBilled === 'true';
+    }
 
     const labRequests = await LabRequest.find(query)
       .populate('patient', 'firstName lastName')
       .populate('doctor', 'firstName lastName')
       .populate('tests.test', 'name cost')
       .populate('medicalRecord')
+      .populate('invoice', 'invoiceNumber status')
       .sort({ orderDate: -1 });
     res.status(200).json({ success: true, count: labRequests.length, data: { labRequests } });
   } catch (error) {

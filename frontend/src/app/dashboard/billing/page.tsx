@@ -84,7 +84,9 @@ export default function BillingPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [patients, setPatients] = useState<User[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [unbilledLabRequests, setUnbilledLabRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingLabRequests, setLoadingLabRequests] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   
@@ -182,13 +184,76 @@ export default function BillingPage() {
     }
   };
 
+  // Fetch unbilled lab requests
+  const fetchUnbilledLabRequests = async () => {
+    try {
+      setLoadingLabRequests(true);
+      const response = await api.get('/lab/requests?isBilled=false');
+      const requestsList = (response.data.data.labRequests || []).map((req: any) => ({
+        ...req,
+        id: req._id || req.id,
+      }));
+      setUnbilledLabRequests(requestsList);
+    } catch (err: any) {
+      console.error('Failed to fetch unbilled lab requests:', err);
+    } finally {
+      setLoadingLabRequests(false);
+    }
+  };
+
+  // Create invoice from lab request
+  const handleCreateInvoiceFromLabRequest = (labRequest: any) => {
+    // Pre-populate invoice form with lab request data
+    const patientId = typeof labRequest.patient === 'object' 
+      ? (labRequest.patient.id || (labRequest.patient as any)._id)
+      : labRequest.patient;
+    
+    const labRequestId = labRequest.id || labRequest._id;
+    
+    const items: InvoiceItem[] = labRequest.tests.map((testItem: any) => {
+      const test = typeof testItem.test === 'object' ? testItem.test : null;
+      const testName = test?.name || 'Unknown Test';
+      const testCost = test?.cost || 0;
+      return {
+        itemType: 'Lab Test',
+        description: testName,
+        quantity: 1,
+        unitPrice: testCost,
+        total: testCost,
+        referenceId: labRequestId, // Store lab request ID for linking
+      };
+    });
+
+    setInvoiceFormData({
+      patient: patientId,
+      appointment: labRequest.appointment || '',
+      items: items,
+      discount: 0,
+      tax: 0,
+      notes: `Invoice for Lab Request`,
+    });
+
+    setOpenInvoiceDialog(true);
+  };
+
   useEffect(() => {
     fetchInvoices();
     if (currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin' || currentUser?.role === 'Receptionist') {
       fetchPatients();
+      fetchUnbilledLabRequests();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, patientFilter]);
+
+  // Refresh unbilled lab requests after invoice creation
+  useEffect(() => {
+    if (currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin' || currentUser?.role === 'Receptionist') {
+      if (success && success.includes('created')) {
+        fetchUnbilledLabRequests();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [success]);
 
   useEffect(() => {
     if (invoiceFormData.patient) {
@@ -641,6 +706,120 @@ export default function BillingPage() {
               </FormControl>
             </Box>
           </Paper>
+
+          {/* Unbilled Lab Requests Section - Only for Reception/Admin/Super Admin */}
+          {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin' || currentUser?.role === 'Receptionist') && (
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6">Unbilled Lab Requests</Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={fetchUnbilledLabRequests}
+                  disabled={loadingLabRequests}
+                >
+                  Refresh
+                </Button>
+              </Box>
+              
+              {loadingLabRequests ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                  <CircularProgress />
+                </Box>
+              ) : unbilledLabRequests.length === 0 ? (
+                <Typography color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                  No unbilled lab requests found
+                </Typography>
+              ) : (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Order Date</TableCell>
+                        <TableCell>Patient</TableCell>
+                        <TableCell>Doctor</TableCell>
+                        <TableCell>Tests</TableCell>
+                        <TableCell>Total Cost</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {unbilledLabRequests.map((labRequest) => {
+                        const orderDate = labRequest.orderDate
+                          ? (typeof labRequest.orderDate === 'string' ? new Date(labRequest.orderDate) : labRequest.orderDate)
+                          : null;
+                        const patient = typeof labRequest.patient === 'object' ? labRequest.patient : null;
+                        const doctor = typeof labRequest.doctor === 'object' ? labRequest.doctor : null;
+                        
+                        // Calculate total cost
+                        const totalCost = labRequest.tests?.reduce((sum: number, testItem: any) => {
+                          const test = typeof testItem.test === 'object' ? testItem.test : null;
+                          return sum + (test?.cost || 0);
+                        }, 0) || 0;
+
+                        return (
+                          <TableRow key={labRequest.id || labRequest._id} hover>
+                            <TableCell>
+                              {orderDate ? orderDate.toLocaleDateString() : 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              {patient ? `${patient.firstName} ${patient.lastName}` : 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              {doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">
+                                {labRequest.tests?.length || 0} test(s)
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {labRequest.tests?.slice(0, 2).map((testItem: any) => {
+                                  const test = typeof testItem.test === 'object' ? testItem.test : null;
+                                  return test?.name || 'Unknown';
+                                }).join(', ') || 'No tests'}
+                                {labRequest.tests && labRequest.tests.length > 2 ? '...' : ''}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                {formatCurrency(totalCost)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={labRequest.status || 'Pending'}
+                                size="small"
+                                color={
+                                  labRequest.status === 'Completed' ? 'success' :
+                                  labRequest.status === 'In Progress' ? 'primary' :
+                                  labRequest.status === 'Cancelled' ? 'error' :
+                                  'default'
+                                }
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Tooltip title="Create Invoice">
+                                <Button
+                                  variant="contained"
+                                  size="small"
+                                  startIcon={<AddIcon />}
+                                  onClick={() => handleCreateInvoiceFromLabRequest(labRequest)}
+                                  color="primary"
+                                >
+                                  Create Invoice
+                                </Button>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Paper>
+          )}
 
           {/* Invoices Table */}
           <TableContainer component={Paper}>

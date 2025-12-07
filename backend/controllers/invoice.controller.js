@@ -37,12 +37,12 @@ exports.createInvoice = async (req, res) => {
       .populate('patient', 'firstName lastName email phone')
       .populate('appointment');
 
-    // If invoice contains lab tests and is paid, process notifications
+    // If invoice contains lab tests, mark lab requests as billed and send notifications
     const hasLabTests = items && items.some(item => item.itemType === 'Lab Test');
-    const isPaid = invoice.status === 'Paid';
     
-    if (hasLabTests && isPaid) {
+    if (hasLabTests) {
       // Process lab test notifications asynchronously (don't block response)
+      // This marks lab requests as billed and notifies lab technicians
       processLabTestNotifications(invoice, items).catch(err => {
         console.error('Error processing lab test notifications:', err);
       });
@@ -63,7 +63,13 @@ async function processLabTestNotifications(invoice, items) {
       .filter(id => id);
 
     if (labRequestIds.length > 0) {
-      const labRequests = await LabRequest.find({ _id: { $in: labRequestIds } })
+      // Use $in with string IDs or ObjectIds
+      const labRequests = await LabRequest.find({ 
+        $or: [
+          { _id: { $in: labRequestIds } },
+          { _id: { $in: labRequestIds.map(id => id.toString()) } }
+        ]
+      })
         .populate('patient', 'firstName lastName');
       
       for (const labRequest of labRequests) {
