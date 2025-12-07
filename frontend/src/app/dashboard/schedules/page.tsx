@@ -357,9 +357,17 @@ export default function DoctorSchedulesPage() {
         if (formData.isRecurring) {
           const promises: Promise<any>[] = [];
           
+          // Build all schedule payloads first
           formData.selectedDays.forEach(dayIndex => {
             const dayRanges = formData.daySchedules[dayIndex] || [];
+            
+            // Create a schedule entry for each time range
             dayRanges.forEach((range) => {
+              // Validate that the range has all required fields
+              if (!range.startTime || !range.endTime || !range.slotDuration) {
+                throw new Error(`Incomplete time range for ${DAYS_OF_WEEK[dayIndex]}`);
+              }
+              
               const payload: any = {
                 doctor: formData.doctor,
                 startTime: range.startTime,
@@ -379,12 +387,20 @@ export default function DoctorSchedulesPage() {
             });
           });
 
-          await Promise.all(promises);
-          const totalSchedules = formData.selectedDays.reduce(
-            (sum, dayIndex) => sum + (formData.daySchedules[dayIndex]?.length || 0),
-            0
-          );
-          setSuccess(`Successfully created ${totalSchedules} schedule(s)!`);
+          // Wait for all requests to complete
+          const results = await Promise.allSettled(promises);
+          const successful = results.filter(r => r.status === 'fulfilled').length;
+          const failed = results.filter(r => r.status === 'rejected').length;
+          
+          if (failed > 0) {
+            const errors = results
+              .filter(r => r.status === 'rejected')
+              .map((r: any) => r.reason?.response?.data?.message || r.reason?.message || 'Unknown error')
+              .join('; ');
+            setError(`Created ${successful} schedule(s), but ${failed} failed: ${errors}`);
+          } else {
+            setSuccess(`Successfully created ${successful} schedule(s)!`);
+          }
         } else {
           // One-time schedule
           const payload: any = {
