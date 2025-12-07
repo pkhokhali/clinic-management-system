@@ -62,19 +62,28 @@ export const login = createAsyncThunk(
       return { user, token };
     } catch (error: any) {
       // Enhanced error logging
-      console.error('Login error details:', {
+      const apiUrl = error.config?.baseURL || process.env.NEXT_PUBLIC_API_URL || 'Not set';
+      const fullUrl = error.config?.url ? `${error.config.baseURL}${error.config.url}` : 'Unknown';
+      
+      console.error('❌ Login error details:', {
         message: error.message,
+        code: error.code,
         response: error.response?.data,
         status: error.response?.status,
         url: error.config?.url,
-        baseURL: error.config?.baseURL
+        baseURL: error.config?.baseURL,
+        fullURL: fullUrl,
+        apiURL: apiUrl,
+        hint: !process.env.NEXT_PUBLIC_API_URL ? '⚠️ NEXT_PUBLIC_API_URL is not set in environment variables!' : ''
       });
 
       // Handle different error types
       if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-        return rejectWithValue(
-          'Cannot connect to server. Please check your internet connection and ensure the backend is running.'
-        );
+        const errorMsg = !process.env.NEXT_PUBLIC_API_URL
+          ? `Cannot connect to server. API URL not configured. Expected: https://clinic-management-backend-2fuj.onrender.com/api, but got: ${apiUrl}. Please set NEXT_PUBLIC_API_URL in Vercel environment variables.`
+          : `Cannot connect to server at ${fullUrl}. Please check your internet connection and ensure the backend is running.`;
+        
+        return rejectWithValue(errorMsg);
       }
 
       if (error.response) {
