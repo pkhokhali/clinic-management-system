@@ -138,6 +138,7 @@ export default function UsersManagementPage() {
 
   useEffect(() => {
     fetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleFilter]);
 
   // Filter users by search term

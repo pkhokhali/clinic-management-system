@@ -187,6 +187,7 @@ export default function BillingPage() {
     if (currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin' || currentUser?.role === 'Receptionist') {
       fetchPatients();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, patientFilter]);
 
   useEffect(() => {
@@ -222,7 +223,8 @@ export default function BillingPage() {
   // Handle item calculation
   useEffect(() => {
     const total = currentItem.quantity * currentItem.unitPrice;
-    setCurrentItem({ ...currentItem, total });
+    setCurrentItem((prev) => ({ ...prev, total }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentItem.quantity, currentItem.unitPrice]);
 
   // Add item

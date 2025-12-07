@@ -180,6 +180,7 @@ export default function AppointmentsPage() {
     }
     // All roles need doctors list for creating appointments
     fetchDoctors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, doctorFilter]);
 
   // Filter appointments by search term

@@ -306,6 +306,7 @@ export default function LaboratoryPage() {
       fetchPatients();
     }
     fetchDoctors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -314,6 +315,7 @@ export default function LaboratoryPage() {
     } else if (tabValue === 2) {
       fetchResults();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabValue, statusFilter, patientFilter]);
 
   useEffect(() => {

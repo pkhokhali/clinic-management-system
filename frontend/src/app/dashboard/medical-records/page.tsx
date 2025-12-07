@@ -261,16 +261,19 @@ export default function MedicalRecordsPage() {
       fetchPatients();
     }
     fetchDoctors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     fetchRecords();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientFilter, tabValue]);
 
   useEffect(() => {
     if (tabValue === 1) {
       fetchPrescriptions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientFilter, statusFilter, tabValue]);
 
   // Handle patient selection change - fetch appointments

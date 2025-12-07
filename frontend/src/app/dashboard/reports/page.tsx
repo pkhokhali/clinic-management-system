@@ -123,6 +123,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]);
 
   const formatCurrency = (amount: number) => {
