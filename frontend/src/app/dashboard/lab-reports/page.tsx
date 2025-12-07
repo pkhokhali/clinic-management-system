@@ -25,6 +25,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Button,
   Alert,
   CircularProgress,
   Tooltip,
@@ -141,6 +142,7 @@ export default function LabReportsPage() {
     if (results.length > 0) {
       fetchUniquePatients();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results]);
 
   // Filter results

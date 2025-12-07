@@ -143,6 +143,7 @@ export default function PatientsPage() {
 
   useEffect(() => {
     fetchPatients();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filter patients by search term
