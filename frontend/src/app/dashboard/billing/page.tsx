@@ -1082,7 +1082,7 @@ export default function BillingPage() {
                 disabled={
                   submittingPayment ||
                   paymentFormData.amount <= 0 ||
-                  (selectedInvoice && paymentFormData.amount > (selectedInvoice.total - (selectedInvoice.payments ? selectedInvoice.payments.filter(p => p.status === 'Completed').reduce((sum, p) => sum + p.amount, 0) : 0)))
+                  (selectedInvoice ? paymentFormData.amount > (selectedInvoice.total - (selectedInvoice.payments ? selectedInvoice.payments.filter(p => p.status === 'Completed').reduce((sum, p) => sum + p.amount, 0) : 0)) : false)
                 }
               >
                 {submittingPayment ? <CircularProgress size={24} /> : 'Add Payment'}
