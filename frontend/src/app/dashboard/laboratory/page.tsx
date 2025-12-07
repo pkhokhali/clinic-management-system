@@ -84,6 +84,8 @@ interface LabRequest {
   status: 'Pending' | 'Sample Collected' | 'In Progress' | 'Completed' | 'Cancelled';
   priority: 'Routine' | 'Urgent' | 'Stat';
   instructions?: string;
+  isBilled?: boolean;
+  billedAt?: string | Date;
 }
 
 interface LabResult {
