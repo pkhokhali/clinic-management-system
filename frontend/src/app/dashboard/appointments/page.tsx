@@ -70,6 +70,7 @@ interface AppointmentFormData {
 
 export default function AppointmentsPage() {
   const { user: currentUser } = useAppSelector((state) => state.auth);
+  const searchParams = useSearchParams();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [patients, setPatients] = useState<User[]>([]);
   const [doctors, setDoctors] = useState<User[]>([]);
