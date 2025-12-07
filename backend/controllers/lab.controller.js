@@ -156,10 +156,38 @@ exports.getLabResults = async (req, res) => {
   try {
     const { patient, doctor, status } = req.query;
     const query = {};
-    if (req.user.role === 'Patient') query.patient = req.user.id;
-    else if (req.user.role === 'Doctor') query.doctor = req.user.id;
-    else if (patient) query.patient = patient;
-    else if (doctor) query.doctor = doctor;
+    
+    if (req.user.role === 'Patient') {
+      query.patient = req.user.id;
+    } else if (req.user.role === 'Doctor') {
+      // For doctors, only show lab results for their assigned patients
+      // Find all patients the doctor has appointments with or has created medical records for
+      const Appointment = require('../models/Appointment.model');
+      const MedicalRecord = require('../models/MedicalRecord.model');
+      
+      // Get all appointments for this doctor
+      const appointments = await Appointment.find({ doctor: req.user.id }).distinct('patient');
+      
+      // Get all medical records created by this doctor
+      const medicalRecords = await MedicalRecord.find({ doctor: req.user.id }).distinct('patient');
+      
+      // Combine unique patient IDs
+      const assignedPatientIds = [...new Set([...appointments, ...medicalRecords])];
+      
+      if (assignedPatientIds.length === 0) {
+        // If doctor has no assigned patients, return empty results
+        return res.status(200).json({ success: true, count: 0, data: { labResults: [] } });
+      }
+      
+      // Filter lab results to only show those for assigned patients
+      query.patient = { $in: assignedPatientIds };
+      query.doctor = req.user.id; // Also ensure the doctor field matches
+    } else if (patient) {
+      query.patient = patient;
+    } else if (doctor) {
+      query.doctor = doctor;
+    }
+    
     if (status) query.status = status;
 
     const labResults = await LabResult.find(query)
