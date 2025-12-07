@@ -431,7 +431,7 @@ export default function BillingPage() {
       };
       setSelectedInvoice(latestInvoice);
       const totalPaid = latestInvoice.payments
-        ? latestInvoice.payments.filter(p => p.status === 'Completed').reduce((sum, p) => sum + p.amount, 0)
+        ? latestInvoice.payments.filter((p: any) => p.status === 'Completed').reduce((sum: number, p: any) => sum + p.amount, 0)
         : 0;
       const balance = latestInvoice.total - totalPaid;
       setPaymentFormData({
