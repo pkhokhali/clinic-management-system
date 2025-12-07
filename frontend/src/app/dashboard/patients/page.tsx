@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import ProtectedRoute from '@/middleware/auth.middleware';
 import {
@@ -51,7 +52,6 @@ import {
   Science as ScienceIcon,
   LocalPharmacy as PrescriptionIcon,
   Receipt as ReceiptIcon,
-  History as HistoryIcon,
 } from '@mui/icons-material';
 import { useAppSelector } from '@/store/hooks';
 import api from '@/lib/api';
@@ -70,6 +70,7 @@ interface PatientFormData {
 }
 
 export default function PatientsPage() {
+  const router = useRouter();
   const { user: currentUser } = useAppSelector((state) => state.auth);
   const [patients, setPatients] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,8 +82,6 @@ export default function PatientsPage() {
   
   // Dialog states
   const [openDialog, setOpenDialog] = useState(false);
-  const [openViewDialog, setOpenViewDialog] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState<User | null>(null);
   const [editingPatient, setEditingPatient] = useState<User | null>(null);
   const [formData, setFormData] = useState<PatientFormData>({
     firstName: '',
@@ -98,16 +97,6 @@ export default function PatientsPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Patient history states
-  const [historyTab, setHistoryTab] = useState(0);
-  const [patientHistory, setPatientHistory] = useState({
-    medicalRecords: [] as any[],
-    appointments: [] as any[],
-    labRequests: [] as any[],
-    prescriptions: [] as any[],
-    invoices: [] as any[],
-  });
-  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Fetch patients (users with role = Patient)
   const fetchPatients = async () => {
@@ -228,54 +217,6 @@ export default function PatientsPage() {
     setOpenDialog(true);
   };
 
-  // Handle view - fetch patient history
-  const handleView = async (patient: User) => {
-    setSelectedPatient(patient);
-    setOpenViewDialog(true);
-    setHistoryTab(0);
-    await fetchPatientHistory(patient.id || (patient as any)._id);
-  };
-
-  // Fetch comprehensive patient history
-  const fetchPatientHistory = async (patientId: string) => {
-    try {
-      setLoadingHistory(true);
-      const [recordsRes, appointmentsRes, labRequestsRes, prescriptionsRes, invoicesRes] = await Promise.all([
-        api.get(`/medical/records?patient=${patientId}`).catch(() => ({ data: { data: { medicalRecords: [] } } })),
-        api.get(`/appointments?patient=${patientId}`).catch(() => ({ data: { data: { appointments: [] } } })),
-        api.get(`/lab/requests?patient=${patientId}`).catch(() => ({ data: { data: { labRequests: [] } } })),
-        api.get(`/medical/prescriptions?patient=${patientId}`).catch(() => ({ data: { data: { prescriptions: [] } } })),
-        api.get(`/invoices?patient=${patientId}`).catch(() => ({ data: { data: { invoices: [] } } })),
-      ]);
-
-      setPatientHistory({
-        medicalRecords: (recordsRes.data.data.medicalRecords || []).map((r: any) => ({
-          ...r,
-          id: r._id || r.id,
-        })),
-        appointments: (appointmentsRes.data.data.appointments || []).map((a: any) => ({
-          ...a,
-          id: a._id || a.id,
-        })),
-        labRequests: (labRequestsRes.data.data.labRequests || []).map((lr: any) => ({
-          ...lr,
-          id: lr._id || lr.id,
-        })),
-        prescriptions: (prescriptionsRes.data.data.prescriptions || []).map((p: any) => ({
-          ...p,
-          id: p._id || p.id,
-        })),
-        invoices: (invoicesRes.data.data.invoices || []).map((i: any) => ({
-          ...i,
-          id: i._id || i.id,
-        })),
-      });
-    } catch (err: any) {
-      console.error('Failed to fetch patient history:', err);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
 
   // Handle add new
   const handleAddNew = () => {
@@ -306,18 +247,6 @@ export default function PatientsPage() {
     setError(null);
   };
 
-  const handleCloseViewDialog = () => {
-    setOpenViewDialog(false);
-    setSelectedPatient(null);
-    setHistoryTab(0);
-    setPatientHistory({
-      medicalRecords: [],
-      appointments: [],
-      labRequests: [],
-      prescriptions: [],
-      invoices: [],
-    });
-  };
 
   // Format currency helper
   const formatCurrency = (amount: number) => {
@@ -458,7 +387,21 @@ export default function PatientsPage() {
                     return (
                       <TableRow key={patient.id} hover>
                         <TableCell>
-                          {patient.firstName} {patient.lastName}
+                          <Typography
+                            component="span"
+                            sx={{
+                              color: 'primary.main',
+                              cursor: 'pointer',
+                              textDecoration: 'underline',
+                              '&:hover': {
+                                textDecoration: 'none',
+                                fontWeight: 'medium',
+                              },
+                            }}
+                            onClick={() => router.push(`/dashboard/patients/${patient.id || (patient as any)._id}/history`)}
+                          >
+                            {patient.firstName} {patient.lastName}
+                          </Typography>
                         </TableCell>
                         <TableCell>{patient.email}</TableCell>
                         <TableCell>{patient.phone}</TableCell>
@@ -479,15 +422,6 @@ export default function PatientsPage() {
                           />
                         </TableCell>
                         <TableCell align="right">
-                          <Tooltip title="View Patient History">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleView(patient)}
-                              color="primary"
-                            >
-                              <HistoryIcon />
-                            </IconButton>
-                          </Tooltip>
                           {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin' || currentUser?.role === 'Receptionist') && (
                             <Tooltip title="Edit">
                               <IconButton
@@ -645,331 +579,6 @@ export default function PatientsPage() {
             </Dialog>
           )}
 
-          {/* Patient History Dialog */}
-          <Dialog open={openViewDialog} onClose={handleCloseViewDialog} maxWidth="lg" fullWidth scroll="paper">
-            <DialogTitle>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <HistoryIcon />
-                <Typography variant="h6">Patient History - {selectedPatient?.firstName} {selectedPatient?.lastName}</Typography>
-              </Box>
-            </DialogTitle>
-            <DialogContent>
-              {selectedPatient && (
-                <Box>
-                  {/* Patient Basic Info */}
-                  <Paper sx={{ p: 2, mb: 2 }}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <Typography variant="subtitle2" color="text.secondary">Full Name</Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                          {selectedPatient.firstName} {selectedPatient.lastName}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Typography variant="subtitle2" color="text.secondary">Email</Typography>
-                        <Typography variant="body1">
-                          <EmailIcon sx={{ fontSize: 16, verticalAlign: 'middle', mr: 1 }} />
-                          {selectedPatient.email}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Typography variant="subtitle2" color="text.secondary">Phone</Typography>
-                        <Typography variant="body1">
-                          <PhoneIcon sx={{ fontSize: 16, verticalAlign: 'middle', mr: 1 }} />
-                          {selectedPatient.phone}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Typography variant="subtitle2" color="text.secondary">Age / DOB</Typography>
-                        <Typography variant="body1">
-                          <CalendarIcon sx={{ fontSize: 16, verticalAlign: 'middle', mr: 1 }} />
-                          {selectedPatient.dateOfBirth ? new Date(selectedPatient.dateOfBirth).toLocaleDateString() : 'N/A'}
-                          {selectedPatient.dateOfBirth && ` (Age: ${calculateAge(selectedPatient.dateOfBirth)} years)`}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Typography variant="subtitle2" color="text.secondary">Gender / Blood Group</Typography>
-                        <Typography variant="body1">
-                          {selectedPatient.gender || 'N/A'}
-                          {' / '}
-                          <Chip label={selectedPatient.bloodGroup || 'N/A'} color="error" size="small" sx={{ ml: 1 }} />
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Typography variant="subtitle2" color="text.secondary">Status</Typography>
-                        <Chip
-                          label={selectedPatient.isActive !== false ? 'Active' : 'Inactive'}
-                          color={selectedPatient.isActive !== false ? 'success' : 'default'}
-                          size="small"
-                        />
-                      </Grid>
-                    </Grid>
-                  </Paper>
-
-                  <Divider sx={{ my: 2 }} />
-
-                  {/* History Tabs */}
-                  <Paper>
-                    <Tabs value={historyTab} onChange={(e, newValue) => setHistoryTab(newValue)}>
-                      <Tab icon={<AssignmentIcon />} iconPosition="start" label={`Medical Records (${patientHistory.medicalRecords.length})`} />
-                      <Tab icon={<CalendarIcon />} iconPosition="start" label={`Appointments (${patientHistory.appointments.length})`} />
-                      <Tab icon={<ScienceIcon />} iconPosition="start" label={`Lab Tests (${patientHistory.labRequests.length})`} />
-                      <Tab icon={<PrescriptionIcon />} iconPosition="start" label={`Prescriptions (${patientHistory.prescriptions.length})`} />
-                      <Tab icon={<ReceiptIcon />} iconPosition="start" label={`Invoices (${patientHistory.invoices.length})`} />
-                    </Tabs>
-
-                    <Box sx={{ p: 2 }}>
-                      {loadingHistory ? (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                          <CircularProgress />
-                        </Box>
-                      ) : (
-                        <>
-                          {/* Medical Records Tab */}
-                          {historyTab === 0 && (
-                            <TableContainer>
-                              {patientHistory.medicalRecords.length === 0 ? (
-                                <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                                  No medical records found
-                                </Typography>
-                              ) : (
-                                <Table size="small">
-                                  <TableHead>
-                                    <TableRow>
-                                      <TableCell>Date</TableCell>
-                                      <TableCell>Doctor</TableCell>
-                                      <TableCell>Diagnosis</TableCell>
-                                      <TableCell>Follow-up</TableCell>
-                                    </TableRow>
-                                  </TableHead>
-                                  <TableBody>
-                                    {patientHistory.medicalRecords.map((record) => {
-                                      const doctor = typeof record.doctor === 'object' ? record.doctor : null;
-                                      const recordDate = record.date ? (typeof record.date === 'string' ? new Date(record.date) : record.date) : null;
-                                      return (
-                                        <TableRow key={record.id || record._id}>
-                                          <TableCell>{recordDate ? recordDate.toLocaleDateString() : 'N/A'}</TableCell>
-                                          <TableCell>{doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : 'N/A'}</TableCell>
-                                          <TableCell>
-                                            {record.diagnosis?.length > 0 ? record.diagnosis.join(', ') : '-'}
-                                          </TableCell>
-                                          <TableCell>
-                                            {record.followUp?.date ? new Date(record.followUp.date).toLocaleDateString() : '-'}
-                                          </TableCell>
-                                        </TableRow>
-                                      );
-                                    })}
-                                  </TableBody>
-                                </Table>
-                              )}
-                            </TableContainer>
-                          )}
-
-                          {/* Appointments Tab */}
-                          {historyTab === 1 && (
-                            <TableContainer>
-                              {patientHistory.appointments.length === 0 ? (
-                                <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                                  No appointments found
-                                </Typography>
-                              ) : (
-                                <Table size="small">
-                                  <TableHead>
-                                    <TableRow>
-                                      <TableCell>Date</TableCell>
-                                      <TableCell>Time</TableCell>
-                                      <TableCell>Doctor</TableCell>
-                                      <TableCell>Reason</TableCell>
-                                      <TableCell>Status</TableCell>
-                                    </TableRow>
-                                  </TableHead>
-                                  <TableBody>
-                                    {patientHistory.appointments.map((appointment) => {
-                                      const doctor = typeof appointment.doctor === 'object' ? appointment.doctor : null;
-                                      const appointmentDate = appointment.appointmentDate
-                                        ? (typeof appointment.appointmentDate === 'string' ? new Date(appointment.appointmentDate) : appointment.appointmentDate)
-                                        : null;
-                                      return (
-                                        <TableRow key={appointment.id || appointment._id}>
-                                          <TableCell>{appointmentDate ? appointmentDate.toLocaleDateString() : 'N/A'}</TableCell>
-                                          <TableCell>{appointment.appointmentTime || 'N/A'}</TableCell>
-                                          <TableCell>{doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : 'N/A'}</TableCell>
-                                          <TableCell>{appointment.reason || '-'}</TableCell>
-                                          <TableCell>
-                                            <Chip label={appointment.status || 'N/A'} size="small" color={getStatusColor(appointment.status)} />
-                                          </TableCell>
-                                        </TableRow>
-                                      );
-                                    })}
-                                  </TableBody>
-                                </Table>
-                              )}
-                            </TableContainer>
-                          )}
-
-                          {/* Lab Tests Tab */}
-                          {historyTab === 2 && (
-                            <TableContainer>
-                              {patientHistory.labRequests.length === 0 ? (
-                                <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                                  No lab tests found
-                                </Typography>
-                              ) : (
-                                <Table size="small">
-                                  <TableHead>
-                                    <TableRow>
-                                      <TableCell>Order Date</TableCell>
-                                      <TableCell>Tests</TableCell>
-                                      <TableCell>Doctor</TableCell>
-                                      <TableCell>Status</TableCell>
-                                      <TableCell>Billed</TableCell>
-                                    </TableRow>
-                                  </TableHead>
-                                  <TableBody>
-                                    {patientHistory.labRequests.map((request) => {
-                                      const doctor = typeof request.doctor === 'object' ? request.doctor : null;
-                                      const orderDate = request.orderDate
-                                        ? (typeof request.orderDate === 'string' ? new Date(request.orderDate) : request.orderDate)
-                                        : null;
-                                      const tests = request.tests || [];
-                                      const testNames = tests.slice(0, 2).map((t: any) => {
-                                        const test = typeof t.test === 'object' ? t.test : null;
-                                        return test?.name || 'Unknown';
-                                      }).join(', ');
-                                      return (
-                                        <TableRow key={request.id || request._id}>
-                                          <TableCell>{orderDate ? orderDate.toLocaleDateString() : 'N/A'}</TableCell>
-                                          <TableCell>
-                                            {testNames || '-'}
-                                            {tests.length > 2 ? ` +${tests.length - 2} more` : ''}
-                                          </TableCell>
-                                          <TableCell>{doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : 'N/A'}</TableCell>
-                                          <TableCell>
-                                            <Chip label={request.status || 'Pending'} size="small" color={getStatusColor(request.status)} />
-                                          </TableCell>
-                                          <TableCell>
-                                            <Chip
-                                              label={request.isBilled ? 'Yes' : 'No'}
-                                              size="small"
-                                              color={request.isBilled ? 'success' : 'warning'}
-                                            />
-                                          </TableCell>
-                                        </TableRow>
-                                      );
-                                    })}
-                                  </TableBody>
-                                </Table>
-                              )}
-                            </TableContainer>
-                          )}
-
-                          {/* Prescriptions Tab */}
-                          {historyTab === 3 && (
-                            <TableContainer>
-                              {patientHistory.prescriptions.length === 0 ? (
-                                <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                                  No prescriptions found
-                                </Typography>
-                              ) : (
-                                <Table size="small">
-                                  <TableHead>
-                                    <TableRow>
-                                      <TableCell>Date</TableCell>
-                                      <TableCell>Doctor</TableCell>
-                                      <TableCell>Medications</TableCell>
-                                      <TableCell>Status</TableCell>
-                                    </TableRow>
-                                  </TableHead>
-                                  <TableBody>
-                                    {patientHistory.prescriptions.map((prescription) => {
-                                      const doctor = typeof prescription.doctor === 'object' ? prescription.doctor : null;
-                                      const prescriptionDate = prescription.date
-                                        ? (typeof prescription.date === 'string' ? new Date(prescription.date) : prescription.date)
-                                        : null;
-                                      return (
-                                        <TableRow key={prescription.id || prescription._id}>
-                                          <TableCell>{prescriptionDate ? prescriptionDate.toLocaleDateString() : 'N/A'}</TableCell>
-                                          <TableCell>{doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : 'N/A'}</TableCell>
-                                          <TableCell>
-                                            {prescription.medications?.length > 0
-                                              ? `${prescription.medications.length} medication(s)`
-                                              : '-'}
-                                          </TableCell>
-                                          <TableCell>
-                                            <Chip label={prescription.status || 'Active'} size="small" color={getStatusColor(prescription.status)} />
-                                          </TableCell>
-                                        </TableRow>
-                                      );
-                                    })}
-                                  </TableBody>
-                                </Table>
-                              )}
-                            </TableContainer>
-                          )}
-
-                          {/* Invoices Tab */}
-                          {historyTab === 4 && (
-                            <TableContainer>
-                              {patientHistory.invoices.length === 0 ? (
-                                <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                                  No invoices found
-                                </Typography>
-                              ) : (
-                                <Table size="small">
-                                  <TableHead>
-                                    <TableRow>
-                                      <TableCell>Invoice #</TableCell>
-                                      <TableCell>Date</TableCell>
-                                      <TableCell>Items</TableCell>
-                                      <TableCell>Total</TableCell>
-                                      <TableCell>Status</TableCell>
-                                    </TableRow>
-                                  </TableHead>
-                                  <TableBody>
-                                    {patientHistory.invoices.map((invoice) => {
-                                      const invoiceDate = invoice.invoiceDate
-                                        ? (typeof invoice.invoiceDate === 'string' ? new Date(invoice.invoiceDate) : invoice.invoiceDate)
-                                        : null;
-                                      const totalPaid = invoice.payments
-                                        ? invoice.payments.filter((p: any) => p.status === 'Completed').reduce((sum: number, p: any) => sum + p.amount, 0)
-                                        : 0;
-                                      return (
-                                        <TableRow key={invoice.id || invoice._id}>
-                                          <TableCell>{invoice.invoiceNumber}</TableCell>
-                                          <TableCell>{invoiceDate ? invoiceDate.toLocaleDateString() : 'N/A'}</TableCell>
-                                          <TableCell>{invoice.items?.length || 0} item(s)</TableCell>
-                                          <TableCell>
-                                            <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                                              {formatCurrency(invoice.total)}
-                                            </Typography>
-                                            {totalPaid > 0 && (
-                                              <Typography variant="caption" color="text.secondary">
-                                                Paid: {formatCurrency(totalPaid)}
-                                              </Typography>
-                                            )}
-                                          </TableCell>
-                                          <TableCell>
-                                            <Chip label={invoice.status || 'Pending'} size="small" color={getStatusColor(invoice.status)} />
-                                          </TableCell>
-                                        </TableRow>
-                                      );
-                                    })}
-                                  </TableBody>
-                                </Table>
-                              )}
-                            </TableContainer>
-                          )}
-                        </>
-                      )}
-                    </Box>
-                  </Paper>
-                </Box>
-              )}
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={handleCloseViewDialog}>Close</Button>
-            </DialogActions>
-          </Dialog>
         </Box>
       </DashboardLayout>
     </ProtectedRoute>
