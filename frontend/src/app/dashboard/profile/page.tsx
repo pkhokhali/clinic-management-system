@@ -124,8 +124,17 @@ interface Invoice {
   discount: number;
   tax: number;
   total: number;
-  status: 'Pending' | 'Partially Paid' | 'Paid' | 'Cancelled';
+  payments?: Array<{
+    amount: number;
+    paymentMethod: string;
+    paymentDate: Date | string;
+    status: string;
+    transactionId?: string;
+  }>;
+  status: 'Draft' | 'Pending' | 'Partially Paid' | 'Paid' | 'Cancelled' | 'Refunded';
   invoiceDate: string | Date;
+  dueDate?: Date | string;
+  notes?: string;
 }
 
 export default function PatientProfilePage() {
@@ -156,6 +165,8 @@ export default function PatientProfilePage() {
   const [openLabRequestDialog, setOpenLabRequestDialog] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   const [openPrescriptionDialog, setOpenPrescriptionDialog] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [openInvoiceDialog, setOpenInvoiceDialog] = useState(false);
   
   // Fetch patient profile
   const fetchProfile = async () => {
@@ -250,12 +261,29 @@ export default function PatientProfilePage() {
       const invoicesList = (response.data.data.invoices || []).map((inv: any) => ({
         ...inv,
         id: inv._id || inv.id,
+        payments: inv.payments || [],
       }));
       setInvoices(invoicesList);
     } catch (err: any) {
       console.error('Failed to fetch invoices:', err);
     } finally {
       setLoadingInvoices(false);
+    }
+  };
+
+  // View invoice details
+  const handleViewInvoice = async (invoice: Invoice) => {
+    try {
+      // Fetch full invoice details including payments
+      const response = await api.get(`/invoices/${invoice.id || invoice._id}`);
+      const fullInvoice = {
+        ...response.data.data.invoice,
+        id: response.data.data.invoice._id || response.data.data.invoice.id,
+      };
+      setSelectedInvoice(fullInvoice);
+      setOpenInvoiceDialog(true);
+    } catch (err: any) {
+      setError('Failed to fetch invoice details');
     }
   };
   
@@ -281,6 +309,11 @@ export default function PatientProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabValue]);
   
+  // Format currency helper
+  const formatCurrency = (amount: number) => {
+    return `Rs. ${amount.toFixed(2)}`;
+  };
+
   const getStatusColor = (status: string): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' => {
     switch (status) {
       case 'Completed':
@@ -705,9 +738,11 @@ export default function PatientProfilePage() {
                         <TableRow>
                           <TableCell>Invoice #</TableCell>
                           <TableCell>Date</TableCell>
-                          <TableCell>Items</TableCell>
-                          <TableCell>Total</TableCell>
+                          <TableCell>Total Amount</TableCell>
+                          <TableCell>Clear Amount (Paid)</TableCell>
+                          <TableCell>Outstanding Amount</TableCell>
                           <TableCell>Status</TableCell>
+                          <TableCell align="right">Actions</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -716,16 +751,45 @@ export default function PatientProfilePage() {
                             ? (typeof invoice.invoiceDate === 'string' ? new Date(invoice.invoiceDate) : invoice.invoiceDate)
                             : null;
                           
+                          const totalPaid = invoice.payments
+                            ? invoice.payments.filter((p: any) => p.status === 'Completed').reduce((sum: number, p: any) => sum + p.amount, 0)
+                            : 0;
+                          const outstandingAmount = invoice.total - totalPaid;
+                          
                           return (
                             <TableRow key={invoice.id || invoice._id} hover>
                               <TableCell>{invoice.invoiceNumber}</TableCell>
                               <TableCell>
                                 {invoiceDate ? invoiceDate.toLocaleDateString() : 'N/A'}
                               </TableCell>
-                              <TableCell>{invoice.items?.length || 0} item(s)</TableCell>
-                              <TableCell>Rs. {invoice.total?.toFixed(2) || '0.00'}</TableCell>
+                              <TableCell>
+                                <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                                  Rs. {invoice.total?.toFixed(2) || '0.00'}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ color: 'success.main' }}>
+                                  Rs. {totalPaid.toFixed(2)}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ color: outstandingAmount > 0 ? 'error.main' : 'success.main', fontWeight: 'medium' }}>
+                                  Rs. {outstandingAmount.toFixed(2)}
+                                </Typography>
+                              </TableCell>
                               <TableCell>
                                 <Chip label={invoice.status} size="small" color={getStatusColor(invoice.status)} />
+                              </TableCell>
+                              <TableCell align="right">
+                                <Tooltip title="View Details">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleViewInvoice(invoice)}
+                                    color="primary"
+                                  >
+                                    <VisibilityIcon />
+                                  </IconButton>
+                                </Tooltip>
                               </TableCell>
                             </TableRow>
                           );
