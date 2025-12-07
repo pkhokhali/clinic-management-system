@@ -216,10 +216,10 @@ export default function AppointmentsPage() {
 
   // Handle URL parameters from follow-up page
   useEffect(() => {
-    const patientParam = searchParams?.get('patient');
-    const doctorParam = searchParams?.get('doctor');
-    const dateParam = searchParams?.get('date');
-    const reasonParam = searchParams?.get('reason');
+    const patientParam = searchParams.get('patient');
+    const doctorParam = searchParams.get('doctor');
+    const dateParam = searchParams.get('date');
+    const reasonParam = searchParams.get('reason');
 
     if (patientParam || doctorParam || dateParam || reasonParam) {
       setFormData({
