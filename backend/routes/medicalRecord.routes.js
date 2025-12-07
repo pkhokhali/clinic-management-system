@@ -4,6 +4,7 @@ const {
   getMedicalRecords,
   createPrescription,
   getPrescriptions,
+  createCompleteRecord,
 } = require('../controllers/medicalRecord.controller');
 const { protect, authorize } = require('../middlewares/auth.middleware');
 
@@ -15,6 +16,10 @@ router
   .route('/records')
   .get(getMedicalRecords)
   .post(authorize('Doctor', 'Super Admin', 'Admin'), createMedicalRecord);
+
+router
+  .route('/records/complete')
+  .post(authorize('Doctor', 'Super Admin', 'Admin'), createCompleteRecord);
 
 router
   .route('/prescriptions')

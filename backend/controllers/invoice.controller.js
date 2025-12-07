@@ -1,5 +1,8 @@
 const Invoice = require('../models/Invoice.model');
 const Appointment = require('../models/Appointment.model');
+const LabRequest = require('../models/LabRequest.model');
+const User = require('../models/User.model');
+const { createNotification } = require('./notification.controller');
 
 // Generate invoice number
 const generateInvoiceNumber = async () => {
@@ -11,7 +14,7 @@ const generateInvoiceNumber = async () => {
 
 exports.createInvoice = async (req, res) => {
   try {
-    const { patient, items, subtotal, discount, tax, notes, appointment } = req.body;
+    const { patient, items, subtotal, discount, tax, notes, appointment, status: invoiceStatus } = req.body;
     
     const total = subtotal - (discount || 0) + (tax || 0);
     const invoiceNumber = await generateInvoiceNumber();
@@ -27,18 +30,71 @@ exports.createInvoice = async (req, res) => {
       total,
       notes,
       createdBy: req.user.id,
-      status: 'Pending',
+      status: invoiceStatus || 'Pending',
     });
 
     const populated = await Invoice.findById(invoice._id)
       .populate('patient', 'firstName lastName email phone')
       .populate('appointment');
 
+    // If invoice contains lab tests and is paid, process notifications
+    const hasLabTests = items && items.some(item => item.itemType === 'Lab Test');
+    const isPaid = invoice.status === 'Paid';
+    
+    if (hasLabTests && isPaid) {
+      // Process lab test notifications asynchronously (don't block response)
+      processLabTestNotifications(invoice, items).catch(err => {
+        console.error('Error processing lab test notifications:', err);
+      });
+    }
+
     res.status(201).json({ success: true, data: { invoice: populated } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error creating invoice', error: error.message });
   }
 };
+
+// Helper function to process lab test notifications
+async function processLabTestNotifications(invoice, items) {
+  try {
+    const labTestItems = items.filter(item => item.itemType === 'Lab Test');
+    const labRequestIds = labTestItems
+      .map(item => item.referenceId)
+      .filter(id => id);
+
+    if (labRequestIds.length > 0) {
+      const labRequests = await LabRequest.find({ _id: { $in: labRequestIds } })
+        .populate('patient', 'firstName lastName');
+      
+      for (const labRequest of labRequests) {
+        if (!labRequest.isBilled) {
+          labRequest.isBilled = true;
+          labRequest.billedAt = new Date();
+          labRequest.invoice = invoice._id;
+          await labRequest.save();
+
+          const labTechnicians = await User.find({ role: 'Lab Technician' });
+          const patient = typeof labRequest.patient === 'object' 
+            ? labRequest.patient 
+            : await User.findById(labRequest.patient);
+          
+          for (const technician of labTechnicians) {
+            await createNotification(
+              technician._id,
+              'Lab Test Billed',
+              'New Lab Test Billed',
+              `Lab test for ${patient ? `${patient.firstName} ${patient.lastName}` : 'Patient'} has been billed and is ready for processing.`,
+              labRequest._id,
+              'LabRequest'
+            );
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error in processLabTestNotifications:', error);
+  }
+}
 
 exports.getInvoices = async (req, res) => {
   try {
@@ -116,6 +172,17 @@ exports.addPayment = async (req, res) => {
     }
 
     await invoice.save();
+
+    // Check if invoice contains lab tests and payment is completed
+    const hasLabTests = invoice.items.some(item => item.itemType === 'Lab Test');
+    const isPaid = invoice.status === 'Paid' || invoice.status === 'Partially Paid';
+
+    // If lab tests are billed and payment is made, process notifications
+    if (hasLabTests && isPaid) {
+      processLabTestNotifications(invoice, invoice.items).catch(err => {
+        console.error('Error processing lab test notifications:', err);
+      });
+    }
 
     res.status(200).json({ success: true, data: { invoice } });
   } catch (error) {

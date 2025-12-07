@@ -71,16 +71,28 @@ exports.getLabRequests = async (req, res) => {
   try {
     const { status, patient, doctor } = req.query;
     const query = {};
-    if (req.user.role === 'Patient') query.patient = req.user.id;
-    else if (req.user.role === 'Doctor') query.doctor = req.user.id;
-    else if (patient) query.patient = patient;
-    else if (doctor) query.doctor = doctor;
+    
+    // Role-based visibility:
+    // - Patient: own requests only
+    // - Doctor: own requests only
+    // - Lab Technician: all requests (can filter by patient)
+    // - Admin, Super Admin, Receptionist: all requests
+    if (req.user.role === 'Patient') {
+      query.patient = req.user.id;
+    } else if (req.user.role === 'Doctor') {
+      query.doctor = req.user.id;
+    }
+    // Lab Technician, Admin, Super Admin, Receptionist can see all
+    
+    if (patient) query.patient = patient;
+    if (doctor) query.doctor = doctor;
     if (status) query.status = status;
 
     const labRequests = await LabRequest.find(query)
       .populate('patient', 'firstName lastName')
       .populate('doctor', 'firstName lastName')
       .populate('tests.test', 'name cost')
+      .populate('medicalRecord')
       .sort({ orderDate: -1 });
     res.status(200).json({ success: true, count: labRequests.length, data: { labRequests } });
   } catch (error) {
