@@ -674,6 +674,18 @@ export default function LaboratoryPage() {
                 Add Lab Test
               </Button>
             )}
+            {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && tabValue === 3 && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => {
+                  resetCategoryForm();
+                  setOpenCategoryDialog(true);
+                }}
+              >
+                Add Category
+              </Button>
+            )}
             {canCreateRequest && tabValue === 1 && (
               <Button
                 variant="contained"
