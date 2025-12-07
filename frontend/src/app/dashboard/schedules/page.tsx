@@ -874,6 +874,25 @@ export default function DoctorSchedulesPage() {
                     )}
 
                     <Divider sx={{ my: 2 }} />
+                    
+                    {/* Summary of schedules to be created */}
+                    {formData.isRecurring && formData.selectedDays.length > 0 && (
+                      <Box sx={{ mb: 2, p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                          Summary: {formData.selectedDays.reduce((sum, dayIndex) => sum + (formData.daySchedules[dayIndex]?.length || 0), 0)} schedule(s) will be created
+                        </Typography>
+                        {formData.selectedDays.map(dayIndex => {
+                          const dayRanges = formData.daySchedules[dayIndex] || [];
+                          if (dayRanges.length === 0) return null;
+                          return (
+                            <Typography key={dayIndex} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                              <strong>{DAYS_OF_WEEK[dayIndex]}:</strong> {dayRanges.length} time range(s) - {dayRanges.map((r, i) => `${r.startTime}-${r.endTime} (${r.slotDuration}min)`).join(', ')}
+                            </Typography>
+                          );
+                        })}
+                      </Box>
+                    )}
+                    
                     <Typography variant="subtitle2" sx={{ mb: 1 }}>
                       Default Values (Used when adding new time ranges)
                     </Typography>
