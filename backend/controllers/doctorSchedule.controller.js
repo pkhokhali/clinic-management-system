@@ -285,6 +285,41 @@ exports.getAvailableSlots = async (req, res) => {
   }
 };
 
+// @desc    Get doctor's consultation fee
+// @route   GET /api/schedules/consultation-fee/:doctorId
+// @access  Private
+exports.getConsultationFee = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    
+    // Get the most recent active schedule for this doctor to get consultation fee
+    const schedule = await DoctorSchedule.findOne({
+      doctor: doctorId,
+      isActive: true,
+      consultationFee: { $exists: true, $gt: 0 },
+    })
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .select('consultationFee doctor')
+      .populate('doctor', 'firstName lastName');
+    
+    const consultationFee = schedule?.consultationFee || 0;
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        consultationFee,
+        doctor: schedule?.doctor || null,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching consultation fee',
+      error: error.message,
+    });
+  }
+};
+
 // @desc    Get all available dates for a doctor (recurring days and one-time dates)
 // @route   GET /api/schedules/available-dates/:doctorId
 // @access  Private

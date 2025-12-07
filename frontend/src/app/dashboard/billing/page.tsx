@@ -198,6 +198,68 @@ export default function BillingPage() {
     }
   }, [invoiceFormData.patient]);
 
+  // Auto-populate consultation details when consultation type is selected with appointment
+  useEffect(() => {
+    const autoPopulateConsultation = async () => {
+      if (
+        currentItem.itemType === 'Consultation' &&
+        invoiceFormData.appointment &&
+        invoiceFormData.patient
+      ) {
+        try {
+          // Find the selected appointment
+          const selectedAppointment = appointments.find(
+            apt => apt.id === invoiceFormData.appointment
+          );
+          
+          if (selectedAppointment) {
+            const doctor = typeof selectedAppointment.doctor === 'object' 
+              ? selectedAppointment.doctor 
+              : null;
+            
+            if (doctor) {
+              const doctorId = doctor.id || (doctor as any)._id;
+              
+              // Fetch consultation fee
+              const feeResponse = await api.get(`/schedules/consultation-fee/${doctorId}`);
+              const consultationFee = feeResponse.data.data.consultationFee || 0;
+              
+              // Auto-populate description and unit price
+              const doctorName = `${doctor.firstName} ${doctor.lastName}`;
+              setCurrentItem(prev => ({
+                ...prev,
+                description: `OPD Charge - Dr. ${doctorName}`,
+                unitPrice: consultationFee,
+              }));
+            }
+          }
+        } catch (err: any) {
+          console.error('Failed to fetch consultation fee:', err);
+          // If appointment is selected but fee fetch fails, still set description
+          const selectedAppointment = appointments.find(
+            apt => apt.id === invoiceFormData.appointment
+          );
+          if (selectedAppointment) {
+            const doctor = typeof selectedAppointment.doctor === 'object' 
+              ? selectedAppointment.doctor 
+              : null;
+            if (doctor) {
+              const doctorName = `${doctor.firstName} ${doctor.lastName}`;
+              setCurrentItem(prev => ({
+                ...prev,
+                description: `OPD Charge - Dr. ${doctorName}`,
+                unitPrice: prev.unitPrice || 0,
+              }));
+            }
+          }
+        }
+      }
+    };
+
+    autoPopulateConsultation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentItem.itemType, invoiceFormData.appointment, appointments]);
+
   // Filter invoices
   const filteredInvoices = invoices.filter((invoice) => {
     const searchLower = searchTerm.toLowerCase();
@@ -659,7 +721,21 @@ export default function BillingPage() {
                     <Select
                       value={invoiceFormData.appointment}
                       label="Appointment (Optional)"
-                      onChange={(e) => setInvoiceFormData({ ...invoiceFormData, appointment: e.target.value })}
+                      onChange={(e) => {
+                        const appointmentId = e.target.value;
+                        setInvoiceFormData({ ...invoiceFormData, appointment: appointmentId });
+                        // If consultation is selected, trigger auto-populate
+                        if (currentItem.itemType === 'Consultation' && appointmentId) {
+                          // The useEffect will handle auto-population
+                        } else if (currentItem.itemType === 'Consultation' && !appointmentId) {
+                          // Clear description and price if appointment is removed
+                          setCurrentItem(prev => ({
+                            ...prev,
+                            description: '',
+                            unitPrice: 0,
+                          }));
+                        }
+                      }}
                       disabled={!invoiceFormData.patient}
                     >
                       <MenuItem value="">None</MenuItem>
@@ -679,7 +755,20 @@ export default function BillingPage() {
                         <Select
                           value={currentItem.itemType}
                           label="Item Type"
-                          onChange={(e) => setCurrentItem({ ...currentItem, itemType: e.target.value as typeof currentItem.itemType })}
+                          onChange={(e) => {
+                            const newType = e.target.value as typeof currentItem.itemType;
+                            // Reset description and price when changing type (except Consultation with appointment)
+                            if (newType !== 'Consultation' || !invoiceFormData.appointment) {
+                              setCurrentItem({ 
+                                ...currentItem, 
+                                itemType: newType,
+                                description: '',
+                                unitPrice: 0,
+                              });
+                            } else {
+                              setCurrentItem({ ...currentItem, itemType: newType });
+                            }
+                          }}
                         >
                           <MenuItem value="Consultation">Consultation</MenuItem>
                           <MenuItem value="Lab Test">Lab Test</MenuItem>

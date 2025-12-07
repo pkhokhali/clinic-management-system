@@ -59,6 +59,7 @@ interface DoctorSchedule {
   startTime: string;
   endTime: string;
   slotDuration: number;
+  consultationFee?: number;
   isRecurring: boolean;
   isActive: boolean;
   effectiveFrom?: string | Date;
@@ -108,6 +109,7 @@ export default function DoctorSchedulesPage() {
     startTime: '09:00', // Default time (used when adding new time ranges)
     endTime: '17:00', // Default time (used when adding new time ranges)
     slotDuration: 30, // Default slot duration
+    consultationFee: 0, // Consultation fee for this schedule
     isActive: true,
     effectiveFrom: new Date().toISOString().split('T')[0],
     effectiveUntil: '',
@@ -335,6 +337,7 @@ export default function DoctorSchedulesPage() {
           slotDuration: formData.isRecurring
             ? (firstTimeRange?.slotDuration || formData.slotDuration)
             : formData.slotDuration,
+          consultationFee: formData.consultationFee || 0,
           isRecurring: formData.isRecurring,
           isActive: formData.isActive,
           effectiveFrom: formData.effectiveFrom || new Date(),
@@ -373,6 +376,7 @@ export default function DoctorSchedulesPage() {
                 startTime: range.startTime,
                 endTime: range.endTime,
                 slotDuration: range.slotDuration,
+                consultationFee: formData.consultationFee || 0,
                 isRecurring: true,
                 dayOfWeek: dayIndex,
                 isActive: formData.isActive,
@@ -408,6 +412,7 @@ export default function DoctorSchedulesPage() {
             startTime: formData.startTime,
             endTime: formData.endTime,
             slotDuration: formData.slotDuration,
+            consultationFee: formData.consultationFee || 0,
             isRecurring: false,
             specificDate: formData.specificDate,
             isActive: formData.isActive,
@@ -460,6 +465,7 @@ export default function DoctorSchedulesPage() {
       startTime: schedule.startTime,
       endTime: schedule.endTime,
       slotDuration: schedule.slotDuration || 30,
+      consultationFee: (schedule as any).consultationFee || 0,
       isActive: schedule.isActive !== false,
       effectiveFrom: schedule.effectiveFrom
         ? (typeof schedule.effectiveFrom === 'string'
@@ -503,6 +509,7 @@ export default function DoctorSchedulesPage() {
       startTime: '09:00',
       endTime: '17:00',
       slotDuration: 30,
+      consultationFee: 0,
       isActive: true,
       effectiveFrom: new Date().toISOString().split('T')[0],
       effectiveUntil: '',
@@ -725,6 +732,19 @@ export default function DoctorSchedulesPage() {
                     ))}
                   </Select>
                 </FormControl>
+
+                <TextField
+                  label="Consultation Fee"
+                  type="number"
+                  value={formData.consultationFee}
+                  onChange={(e) => setFormData({ ...formData, consultationFee: parseFloat(e.target.value) || 0 })}
+                  fullWidth
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">Rs</InputAdornment>,
+                  }}
+                  inputProps={{ min: 0, step: 0.01 }}
+                  helperText="Consultation fee for this doctor's schedule"
+                />
 
                 <ToggleButtonGroup
                   value={formData.isRecurring ? 'recurring' : 'onetime'}

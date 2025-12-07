@@ -31,6 +31,11 @@ const doctorScheduleSchema = new mongoose.Schema({
     min: 5,
     max: 50,
   },
+  consultationFee: {
+    type: Number, // Consultation fee in local currency
+    min: 0,
+    default: 0,
+  },
   isRecurring: {
     type: Boolean,
     default: true, // If true, repeats weekly on dayOfWeek; if false, use specificDate

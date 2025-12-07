@@ -7,6 +7,7 @@ const {
   deleteSchedule,
   getAvailableSlots,
   getAvailableDates,
+  getConsultationFee,
 } = require('../controllers/doctorSchedule.controller');
 const { protect, authorize } = require('../middlewares/auth.middleware');
 
@@ -31,6 +32,9 @@ router.get('/availability/:doctorId', getAvailableSlots);
 
 // Route for getting available dates (any authenticated user)
 router.get('/available-dates/:doctorId', getAvailableDates);
+
+// Route for getting consultation fee (any authenticated user)
+router.get('/consultation-fee/:doctorId', getConsultationFee);
 
 module.exports = router;
 
