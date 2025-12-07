@@ -122,11 +122,18 @@ exports.getUser = async (req, res) => {
     }
 
     // Check permissions
-    if (
-      req.user.role !== 'Super Admin' &&
-      req.user.role !== 'Admin' &&
-      req.user.id.toString() !== req.params.id
-    ) {
+    if (req.user.role === 'Super Admin' || req.user.role === 'Admin') {
+      // Super Admin and Admin can access any user
+      // No additional check needed
+    } else if (req.user.id.toString() === req.params.id) {
+      // Users can always access their own profile
+      // No additional check needed
+    } else if (req.user.role === 'Doctor' && user.role === 'Patient') {
+      // Doctors can access patient details (to view patient history)
+      // This is allowed because doctors can only see assigned patients in the patients list
+      // No additional check needed
+    } else {
+      // All other cases: not authorized
       return res.status(403).json({
         success: false,
         message: 'Not authorized to access this user',
