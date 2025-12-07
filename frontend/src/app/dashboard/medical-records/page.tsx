@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import ProtectedRoute from '@/middleware/auth.middleware';
 import {
@@ -35,6 +36,9 @@ import {
   Card,
   CardContent,
   Divider,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -43,6 +47,8 @@ import {
   Assignment as AssignmentIcon,
   LocalPharmacy as PrescriptionIcon,
   Delete as DeleteIcon,
+  Science as ScienceIcon,
+  LocalPharmacy as LocalPharmacyIcon,
 } from '@mui/icons-material';
 import { useAppSelector } from '@/store/hooks';
 import api from '@/lib/api';
@@ -97,6 +103,7 @@ interface Medication {
 
 export default function MedicalRecordsPage() {
   const { user: currentUser } = useAppSelector((state) => state.auth);
+  const searchParams = useSearchParams();
   const [tabValue, setTabValue] = useState(0);
   
   // Medical Records state
@@ -119,6 +126,8 @@ export default function MedicalRecordsPage() {
   const [patients, setPatients] = useState<User[]>([]);
   const [doctors, setDoctors] = useState<User[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [labTests, setLabTests] = useState<any[]>([]);
+  const [loadingLabTests, setLoadingLabTests] = useState(false);
   
   // Dialog states - Records
   const [openRecordDialog, setOpenRecordDialog] = useState(false);
@@ -136,6 +145,12 @@ export default function MedicalRecordsPage() {
     treatment: '',
     followUpDate: '',
     followUpNotes: '',
+    // New fields for combined workflow
+    selectedLabTests: [] as string[],
+    labPriority: 'Routine' as 'Routine' | 'Urgent' | 'Stat',
+    labInstructions: '',
+    prescriptionMedications: [] as Medication[],
+    prescriptionNotes: '',
   });
   const [diagnosisInput, setDiagnosisInput] = useState('');
   const [submittingRecord, setSubmittingRecord] = useState(false);
@@ -207,6 +222,23 @@ export default function MedicalRecordsPage() {
     }
   };
 
+  // Fetch lab tests
+  const fetchLabTests = async () => {
+    try {
+      setLoadingLabTests(true);
+      const response = await api.get('/lab/tests');
+      const testsList = (response.data.data.labTests || []).map((test: any) => ({
+        ...test,
+        id: test._id || test.id,
+      }));
+      setLabTests(testsList.filter((t: any) => t.isActive !== false));
+    } catch (err: any) {
+      console.error('Failed to fetch lab tests:', err);
+    } finally {
+      setLoadingLabTests(false);
+    }
+  };
+
   // Fetch medical records
   const fetchRecords = async () => {
     try {
@@ -256,13 +288,54 @@ export default function MedicalRecordsPage() {
     }
   };
 
+  // Fetch lab tests and initial data
   useEffect(() => {
+    fetchLabTests();
     if (currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') {
       fetchPatients();
     }
     fetchDoctors();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Handle appointment parameter from URL
+  useEffect(() => {
+    const appointmentId = searchParams?.get('appointment');
+    if (appointmentId) {
+      // Fetch appointment data directly
+      const fetchAppointmentForRecord = async () => {
+        try {
+          const response = await api.get(`/appointments/${appointmentId}`);
+          const appointment = response.data.data.appointment;
+          if (appointment) {
+            const patientId = typeof appointment.patient === 'object' ? appointment.patient.id || appointment.patient._id : appointment.patient;
+            const doctorId = typeof appointment.doctor === 'object' ? appointment.doctor.id || appointment.doctor._id : appointment.doctor;
+            
+            setRecordFormData(prev => ({
+              ...prev,
+              appointment: appointmentId,
+              patient: patientId || '',
+              doctor: doctorId || prev.doctor,
+              date: appointment.appointmentDate 
+                ? (typeof appointment.appointmentDate === 'string'
+                    ? appointment.appointmentDate.split('T')[0]
+                    : new Date(appointment.appointmentDate).toISOString().split('T')[0])
+                : new Date().toISOString().split('T')[0],
+            }));
+            setOpenRecordDialog(true);
+            // Remove appointment parameter from URL
+            window.history.replaceState({}, '', '/dashboard/medical-records');
+          }
+        } catch (err: any) {
+          console.error('Failed to fetch appointment:', err);
+          setError('Failed to load appointment data');
+        }
+      };
+      
+      fetchAppointmentForRecord();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   useEffect(() => {
     fetchRecords();
@@ -283,6 +356,7 @@ export default function MedicalRecordsPage() {
     } else {
       setAppointments([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordFormData.patient]);
 
   // Filter records
@@ -312,36 +386,91 @@ export default function MedicalRecordsPage() {
     );
   });
 
-  // Handle record submission
+  // Handle record submission (with support for combined workflow)
   const handleRecordSubmit = async () => {
     try {
       setSubmittingRecord(true);
       setError(null);
       
-      const payload: any = {
-        patient: recordFormData.patient,
-        doctor: recordFormData.doctor,
-        date: recordFormData.date,
-        chiefComplaint: recordFormData.chiefComplaint,
-        historyOfPresentIllness: recordFormData.historyOfPresentIllness,
-        physicalExamination: recordFormData.physicalExamination,
-        diagnosis: recordFormData.diagnosis,
-        treatment: recordFormData.treatment,
-      };
+      const hasLabTests = recordFormData.selectedLabTests.length > 0;
+      const hasPrescription = recordFormData.prescriptionMedications.length > 0;
       
-      if (recordFormData.appointment) payload.appointment = recordFormData.appointment;
-      if (recordFormData.followUpDate) {
-        payload.followUp = {
-          date: recordFormData.followUpDate,
-          notes: recordFormData.followUpNotes,
+      // Use combined endpoint if lab tests or prescription are present
+      if (hasLabTests || hasPrescription) {
+        const payload: any = {
+          patient: recordFormData.patient,
+          doctor: recordFormData.doctor,
+          date: recordFormData.date,
+          chiefComplaint: recordFormData.chiefComplaint,
+          historyOfPresentIllness: recordFormData.historyOfPresentIllness,
+          physicalExamination: recordFormData.physicalExamination,
+          diagnosis: recordFormData.diagnosis,
+          treatment: recordFormData.treatment,
         };
+        
+        if (recordFormData.appointment) payload.appointment = recordFormData.appointment;
+        if (recordFormData.followUpDate) {
+          payload.followUp = {
+            date: recordFormData.followUpDate,
+            notes: recordFormData.followUpNotes,
+          };
+        }
+        
+        // Add lab tests if selected
+        if (hasLabTests) {
+          payload.labTests = recordFormData.selectedLabTests;
+          payload.labPriority = recordFormData.labPriority;
+          if (recordFormData.labInstructions) {
+            payload.labInstructions = recordFormData.labInstructions;
+          }
+        }
+        
+        // Add prescription if medications provided
+        if (hasPrescription) {
+          payload.medications = recordFormData.prescriptionMedications;
+          if (recordFormData.prescriptionNotes) {
+            payload.prescriptionNotes = recordFormData.prescriptionNotes;
+          }
+        }
+        
+        await api.post('/medical/records/complete', payload);
+        setSuccess('Medical record with lab tests and prescription created successfully!');
+      } else {
+        // Use regular endpoint if no lab tests or prescription
+        const payload: any = {
+          patient: recordFormData.patient,
+          doctor: recordFormData.doctor,
+          date: recordFormData.date,
+          chiefComplaint: recordFormData.chiefComplaint,
+          historyOfPresentIllness: recordFormData.historyOfPresentIllness,
+          physicalExamination: recordFormData.physicalExamination,
+          diagnosis: recordFormData.diagnosis,
+          treatment: recordFormData.treatment,
+        };
+        
+        if (recordFormData.appointment) payload.appointment = recordFormData.appointment;
+        if (recordFormData.followUpDate) {
+          payload.followUp = {
+            date: recordFormData.followUpDate,
+            notes: recordFormData.followUpNotes,
+          };
+        }
+        
+        await api.post('/medical/records', payload);
+        setSuccess('Medical record created successfully!');
       }
       
-      await api.post('/medical/records', payload);
-      setSuccess('Medical record created successfully!');
       setOpenRecordDialog(false);
       resetRecordForm();
       fetchRecords();
+      if (hasLabTests) {
+        // Refresh prescriptions tab if lab tests were added (they might create prescriptions)
+        setTimeout(() => {
+          if (tabValue === 1) {
+            fetchPrescriptions();
+          }
+        }, 500);
+      }
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to create medical record');
@@ -431,6 +560,32 @@ export default function MedicalRecordsPage() {
     });
   };
 
+  // Add medication to record form (for combined workflow)
+  const handleAddMedicationToRecord = () => {
+    if (currentMedication.medicineName && currentMedication.dosage && currentMedication.frequency && currentMedication.duration) {
+      setRecordFormData({
+        ...recordFormData,
+        prescriptionMedications: [...recordFormData.prescriptionMedications, { ...currentMedication }],
+      });
+      setCurrentMedication({
+        medicineName: '',
+        dosage: '',
+        frequency: '',
+        duration: '',
+        instructions: '',
+        quantity: 1,
+      });
+    }
+  };
+
+  // Remove medication from record form
+  const handleRemoveMedicationFromRecord = (index: number) => {
+    setRecordFormData({
+      ...recordFormData,
+      prescriptionMedications: recordFormData.prescriptionMedications.filter((_, i) => i !== index),
+    });
+  };
+
   // Reset forms
   const resetRecordForm = () => {
     setRecordFormData({
@@ -445,8 +600,21 @@ export default function MedicalRecordsPage() {
       treatment: '',
       followUpDate: '',
       followUpNotes: '',
+      selectedLabTests: [],
+      labPriority: 'Routine',
+      labInstructions: '',
+      prescriptionMedications: [],
+      prescriptionNotes: '',
     });
     setDiagnosisInput('');
+    setCurrentMedication({
+      medicineName: '',
+      dosage: '',
+      frequency: '',
+      duration: '',
+      instructions: '',
+      quantity: 1,
+    });
   };
 
   const resetPrescriptionForm = () => {
@@ -868,6 +1036,175 @@ export default function MedicalRecordsPage() {
                     multiline
                     rows={3}
                   />
+                  
+                  <Divider sx={{ my: 2 }} />
+                  
+                  {/* Lab Tests Section */}
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <ScienceIcon /> Lab Tests to be Done (Optional)
+                    </Typography>
+                    {loadingLabTests ? (
+                      <CircularProgress size={24} />
+                    ) : (
+                      <>
+                        <FormGroup>
+                          {labTests.map((test) => (
+                            <FormControlLabel
+                              key={test.id || test._id}
+                              control={
+                                <Checkbox
+                                  checked={recordFormData.selectedLabTests.includes(test.id || test._id || '')}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setRecordFormData({
+                                        ...recordFormData,
+                                        selectedLabTests: [...recordFormData.selectedLabTests, test.id || test._id || ''],
+                                      });
+                                    } else {
+                                      setRecordFormData({
+                                        ...recordFormData,
+                                        selectedLabTests: recordFormData.selectedLabTests.filter(id => id !== (test.id || test._id)),
+                                      });
+                                    }
+                                  }}
+                                />
+                              }
+                              label={`${test.name} (${test.category}) - Rs. ${test.cost}`}
+                            />
+                          ))}
+                        </FormGroup>
+                        {recordFormData.selectedLabTests.length > 0 && (
+                          <Box sx={{ mt: 2 }}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>Priority</InputLabel>
+                              <Select
+                                value={recordFormData.labPriority}
+                                label="Priority"
+                                onChange={(e) => setRecordFormData({ ...recordFormData, labPriority: e.target.value as any })}
+                              >
+                                <MenuItem value="Routine">Routine</MenuItem>
+                                <MenuItem value="Urgent">Urgent</MenuItem>
+                                <MenuItem value="Stat">Stat</MenuItem>
+                              </Select>
+                            </FormControl>
+                            <TextField
+                              label="Lab Instructions (Optional)"
+                              value={recordFormData.labInstructions}
+                              onChange={(e) => setRecordFormData({ ...recordFormData, labInstructions: e.target.value })}
+                              fullWidth
+                              multiline
+                              rows={2}
+                              sx={{ mt: 2 }}
+                            />
+                          </Box>
+                        )}
+                      </>
+                    )}
+                  </Box>
+                  
+                  <Divider sx={{ my: 2 }} />
+                  
+                  {/* Prescription Section */}
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <LocalPharmacyIcon /> Prescription (Optional)
+                    </Typography>
+                    <Grid container spacing={2} sx={{ mb: 2 }}>
+                      <Grid item xs={12} sm={3}>
+                        <TextField
+                          label="Medicine Name"
+                          value={currentMedication.medicineName}
+                          onChange={(e) => setCurrentMedication({ ...currentMedication, medicineName: e.target.value })}
+                          fullWidth
+                          size="small"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={2}>
+                        <TextField
+                          label="Dosage"
+                          value={currentMedication.dosage}
+                          onChange={(e) => setCurrentMedication({ ...currentMedication, dosage: e.target.value })}
+                          fullWidth
+                          size="small"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={2}>
+                        <TextField
+                          label="Frequency"
+                          value={currentMedication.frequency}
+                          onChange={(e) => setCurrentMedication({ ...currentMedication, frequency: e.target.value })}
+                          fullWidth
+                          size="small"
+                          placeholder="e.g., 2x daily"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={2}>
+                        <TextField
+                          label="Duration"
+                          value={currentMedication.duration}
+                          onChange={(e) => setCurrentMedication({ ...currentMedication, duration: e.target.value })}
+                          fullWidth
+                          size="small"
+                          placeholder="e.g., 7 days"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={2}>
+                        <TextField
+                          label="Quantity"
+                          type="number"
+                          value={currentMedication.quantity}
+                          onChange={(e) => setCurrentMedication({ ...currentMedication, quantity: parseInt(e.target.value) || 1 })}
+                          fullWidth
+                          size="small"
+                          inputProps={{ min: 1 }}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          label="Instructions"
+                          value={currentMedication.instructions}
+                          onChange={(e) => setCurrentMedication({ ...currentMedication, instructions: e.target.value })}
+                          fullWidth
+                          size="small"
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Button
+                          onClick={handleAddMedicationToRecord}
+                          variant="outlined"
+                          startIcon={<AddIcon />}
+                          disabled={!currentMedication.medicineName || !currentMedication.dosage || !currentMedication.frequency || !currentMedication.duration}
+                        >
+                          Add Medication
+                        </Button>
+                      </Grid>
+                    </Grid>
+                    {recordFormData.prescriptionMedications.length > 0 && (
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1 }}>Added Medications:</Typography>
+                        {recordFormData.prescriptionMedications.map((med, index) => (
+                          <Chip
+                            key={index}
+                            label={`${med.medicineName} - ${med.dosage}, ${med.frequency}, ${med.duration}`}
+                            onDelete={() => handleRemoveMedicationFromRecord(index)}
+                            sx={{ mr: 1, mb: 1 }}
+                          />
+                        ))}
+                      </Box>
+                    )}
+                    <TextField
+                      label="Prescription Notes (Optional)"
+                      value={recordFormData.prescriptionNotes}
+                      onChange={(e) => setRecordFormData({ ...recordFormData, prescriptionNotes: e.target.value })}
+                      fullWidth
+                      multiline
+                      rows={2}
+                    />
+                  </Box>
+                  
+                  <Divider sx={{ my: 2 }} />
+                  
                   <TextField
                     label="Follow-up Date (Optional)"
                     type="date"

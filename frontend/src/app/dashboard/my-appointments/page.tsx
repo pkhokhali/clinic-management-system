@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import ProtectedRoute from '@/middleware/auth.middleware';
 import {
@@ -56,6 +57,7 @@ interface Appointment {
 
 export default function MyAppointmentsPage() {
   const { user: currentUser } = useAppSelector((state) => state.auth);
+  const router = useRouter();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -132,7 +134,8 @@ export default function MyAppointmentsPage() {
   const handleAddRecord = () => {
     if (selectedAppointment) {
       // Navigate to medical records page with appointment pre-filled
-      window.location.href = `/dashboard/medical-records?appointment=${selectedAppointment.id || selectedAppointment._id}`;
+      const appointmentId = selectedAppointment.id || (selectedAppointment as any)._id;
+      router.push(`/dashboard/medical-records?appointment=${appointmentId}`);
     }
   };
 
