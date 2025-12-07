@@ -1009,11 +1009,13 @@ export default function DoctorSchedulesPage() {
                   !formData.doctor ||
                   (formData.isRecurring && (
                     formData.selectedDays.length === 0 ||
-                    formData.selectedDays.some(day => 
-                      !formData.daySchedules[day] || 
-                      !formData.daySchedules[day].startTime || 
-                      !formData.daySchedules[day].endTime
-                    )
+                    formData.selectedDays.some(day => {
+                      const dayRanges = formData.daySchedules[day] || [];
+                      if (dayRanges.length === 0) return true;
+                      return dayRanges.some(range => 
+                        !range.startTime || !range.endTime || !range.slotDuration
+                      );
+                    })
                   )) ||
                   (!formData.isRecurring && (!formData.specificDate || !formData.startTime || !formData.endTime))
                 }
