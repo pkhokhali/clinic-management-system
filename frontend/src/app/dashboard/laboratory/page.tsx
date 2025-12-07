@@ -37,6 +37,10 @@ import {
   Divider,
   Checkbox,
   FormControlLabel,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Avatar,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -47,6 +51,10 @@ import {
   Assessment as AssessmentIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  ExpandMore as ExpandMoreIcon,
+  Person as PersonIcon,
+  Phone as PhoneIcon,
+  Email as EmailIcon,
 } from '@mui/icons-material';
 import { useAppSelector } from '@/store/hooks';
 import api from '@/lib/api';
@@ -338,8 +346,13 @@ export default function LaboratoryPage() {
     );
   });
 
-  // Filter requests
+  // Filter requests - For lab technicians, only show billed tests
   const filteredRequests = requests.filter((req) => {
+    // For lab technicians, only show billed tests
+    if (currentUser?.role === 'Lab Technician' && !req.isBilled) {
+      return false;
+    }
+    
     const searchLower = searchTerm.toLowerCase();
     const patient = typeof req.patient === 'object' ? req.patient : null;
     const doctor = typeof req.doctor === 'object' ? req.doctor : null;
@@ -353,6 +366,26 @@ export default function LaboratoryPage() {
       })
     );
   });
+  
+  // Group requests by patient (for lab technician view)
+  const groupedRequestsByPatient = filteredRequests.reduce((acc, request) => {
+    const patient = typeof request.patient === 'object' ? request.patient : null;
+    if (!patient) return acc;
+    
+    const patientId = patient.id || (patient as any)._id;
+    if (!patientId) return acc;
+    
+    if (!acc[patientId]) {
+      acc[patientId] = {
+        patient,
+        requests: [],
+      };
+    }
+    acc[patientId].requests.push(request);
+    return acc;
+  }, {} as Record<string, { patient: User; requests: LabRequest[] }>);
+  
+  const patientGroups = Object.values(groupedRequestsByPatient);
 
   // Filter results
   const filteredResults = results.filter((res) => {
@@ -710,80 +743,229 @@ export default function LaboratoryPage() {
 
           {/* Lab Requests Tab */}
           {tabValue === 1 && (
-            <TableContainer component={Paper}>
+            <>
               {loadingRequests ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
                   <CircularProgress />
                 </Box>
               ) : filteredRequests.length === 0 ? (
                 <Box sx={{ p: 4, textAlign: 'center' }}>
-                  <Typography color="text.secondary">No lab requests found</Typography>
+                  <Typography color="text.secondary">
+                    {currentUser?.role === 'Lab Technician' 
+                      ? 'No billed lab tests found. Tests will appear here after billing is completed.'
+                      : 'No lab requests found'}
+                  </Typography>
+                </Box>
+              ) : currentUser?.role === 'Lab Technician' ? (
+                // Patient-grouped view for Lab Technicians
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {patientGroups.map((group, groupIndex) => {
+                    const patient = group.patient;
+                    const totalTests = group.requests.reduce((sum, req) => sum + req.tests.length, 0);
+                    const pendingTests = group.requests.filter(req => req.status === 'Pending' || req.status === 'Sample Collected').length;
+                    
+                    return (
+                      <Card key={patient.id || (patient as any)._id || groupIndex} variant="outlined">
+                        <CardContent>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                            <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
+                              {patient.firstName?.charAt(0) || 'P'}
+                            </Avatar>
+                            <Box sx={{ flexGrow: 1 }}>
+                              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                {patient.firstName} {patient.lastName}
+                              </Typography>
+                              <Box sx={{ display: 'flex', gap: 2, mt: 0.5, flexWrap: 'wrap' }}>
+                                {patient.email && (
+                                  <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <EmailIcon fontSize="small" /> {patient.email}
+                                  </Typography>
+                                )}
+                                {patient.phone && (
+                                  <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <PhoneIcon fontSize="small" /> {patient.phone}
+                                  </Typography>
+                                )}
+                                {patient.dateOfBirth && (
+                                  <Typography variant="body2" color="text.secondary">
+                                    DOB: {new Date(patient.dateOfBirth).toLocaleDateString()}
+                                  </Typography>
+                                )}
+                                {patient.bloodGroup && (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Blood Group: {patient.bloodGroup}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="subtitle2" color="text.secondary">Total Tests</Typography>
+                              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>{totalTests}</Typography>
+                              {pendingTests > 0 && (
+                                <Chip label={`${pendingTests} Pending`} color="warning" size="small" sx={{ mt: 0.5 }} />
+                              )}
+                            </Box>
+                          </Box>
+                          
+                          <Divider sx={{ my: 2 }} />
+                          
+                          <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
+                            Lab Tests to be Done
+                          </Typography>
+                          
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {group.requests.map((request) => {
+                              const doctor = typeof request.doctor === 'object' ? request.doctor : null;
+                              const orderDate = request.orderDate
+                                ? (typeof request.orderDate === 'string' ? new Date(request.orderDate) : request.orderDate)
+                                : null;
+                              
+                              return (
+                                <Accordion key={request.id || request._id} defaultExpanded>
+                                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', pr: 2 }}>
+                                      <Box sx={{ flexGrow: 1 }}>
+                                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                                          Order Date: {orderDate ? orderDate.toLocaleDateString() : 'N/A'}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                          Doctor: {doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : 'N/A'} | 
+                                          Tests: {request.tests.length} | 
+                                          Priority: {request.priority}
+                                        </Typography>
+                                      </Box>
+                                      <Chip
+                                        label={request.status}
+                                        color={getStatusColor(request.status)}
+                                        size="small"
+                                      />
+                                    </Box>
+                                  </AccordionSummary>
+                                  <AccordionDetails>
+                                    <Box>
+                                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                                        Tests:
+                                      </Typography>
+                                      <Grid container spacing={2}>
+                                        {request.tests.map((testItem, testIndex) => {
+                                          const test = typeof testItem.test === 'object' ? testItem.test : null;
+                                          return (
+                                            <Grid item xs={12} sm={6} md={4} key={testIndex}>
+                                              <Card variant="outlined" sx={{ p: 1.5 }}>
+                                                <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                                  {test ? test.name : 'N/A'}
+                                                </Typography>
+                                                {test && test.category && (
+                                                  <Typography variant="caption" color="text.secondary">
+                                                    {test.category}
+                                                  </Typography>
+                                                )}
+                                                {testItem.notes && (
+                                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                                    Notes: {testItem.notes}
+                                                  </Typography>
+                                                )}
+                                              </Card>
+                                            </Grid>
+                                          );
+                                        })}
+                                      </Grid>
+                                      {request.instructions && (
+                                        <Box sx={{ mt: 2 }}>
+                                          <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Instructions:</Typography>
+                                          <Typography variant="body2">{request.instructions}</Typography>
+                                        </Box>
+                                      )}
+                                      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                                        <Tooltip title="View Full Details">
+                                          <IconButton
+                                            size="small"
+                                            onClick={() => handleViewRequest(request)}
+                                            color="primary"
+                                          >
+                                            <VisibilityIcon />
+                                          </IconButton>
+                                        </Tooltip>
+                                      </Box>
+                                    </Box>
+                                  </AccordionDetails>
+                                </Accordion>
+                              );
+                            })}
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </Box>
               ) : (
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Patient</TableCell>
-                      <TableCell>Doctor</TableCell>
-                      <TableCell>Tests</TableCell>
-                      <TableCell>Order Date</TableCell>
-                      <TableCell>Priority</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell align="right">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredRequests.map((request) => {
-                      const patient = typeof request.patient === 'object' ? request.patient : null;
-                      const doctor = typeof request.doctor === 'object' ? request.doctor : null;
-                      const orderDate = request.orderDate
-                        ? (typeof request.orderDate === 'string' ? new Date(request.orderDate) : request.orderDate)
-                        : null;
+                // Table view for other roles
+                <TableContainer component={Paper}>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Patient</TableCell>
+                        <TableCell>Doctor</TableCell>
+                        <TableCell>Tests</TableCell>
+                        <TableCell>Order Date</TableCell>
+                        <TableCell>Priority</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredRequests.map((request) => {
+                        const patient = typeof request.patient === 'object' ? request.patient : null;
+                        const doctor = typeof request.doctor === 'object' ? request.doctor : null;
+                        const orderDate = request.orderDate
+                          ? (typeof request.orderDate === 'string' ? new Date(request.orderDate) : request.orderDate)
+                          : null;
 
-                      return (
-                        <TableRow key={request.id || request._id} hover>
-                          <TableCell>
-                            {patient ? `${patient.firstName} ${patient.lastName}` : 'N/A'}
-                          </TableCell>
-                          <TableCell>
-                            {doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : 'N/A'}
-                          </TableCell>
-                          <TableCell>{request.tests.length} test(s)</TableCell>
-                          <TableCell>
-                            {orderDate ? orderDate.toLocaleDateString() : 'N/A'}
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={request.priority}
-                              color={getPriorityColor(request.priority)}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={request.status}
-                              color={getStatusColor(request.status)}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <Tooltip title="View Details">
-                              <IconButton
+                        return (
+                          <TableRow key={request.id || request._id} hover>
+                            <TableCell>
+                              {patient ? `${patient.firstName} ${patient.lastName}` : 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              {doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : 'N/A'}
+                            </TableCell>
+                            <TableCell>{request.tests.length} test(s)</TableCell>
+                            <TableCell>
+                              {orderDate ? orderDate.toLocaleDateString() : 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={request.priority}
+                                color={getPriorityColor(request.priority)}
                                 size="small"
-                                onClick={() => handleViewRequest(request)}
-                                color="primary"
-                              >
-                                <VisibilityIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={request.status}
+                                color={getStatusColor(request.status)}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Tooltip title="View Details">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleViewRequest(request)}
+                                  color="primary"
+                                >
+                                  <VisibilityIcon />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
-            </TableContainer>
+            </>
           )}
 
           {/* Lab Results Tab */}
