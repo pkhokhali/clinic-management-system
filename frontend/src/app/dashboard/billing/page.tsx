@@ -362,11 +362,17 @@ export default function BillingPage() {
       setSubmittingPayment(true);
       setError(null);
       
-      const { subtotal, discount, tax, total } = calculateTotals();
+      // Calculate balance from the selected invoice, not from the form
       const totalPaid = selectedInvoice.payments
         ? selectedInvoice.payments.filter(p => p.status === 'Completed').reduce((sum, p) => sum + p.amount, 0)
         : 0;
-      const balance = total - totalPaid;
+      const balance = selectedInvoice.total - totalPaid;
+      
+      if (paymentFormData.amount <= 0) {
+        setError('Payment amount must be greater than 0');
+        setSubmittingPayment(false);
+        return;
+      }
       
       if (paymentFormData.amount > balance) {
         setError(`Payment amount cannot exceed the balance of ${formatCurrency(balance)}`);
@@ -382,6 +388,7 @@ export default function BillingPage() {
         paymentMethod: 'Cash',
         transactionId: '',
       });
+      setError(null); // Clear any error when closing
       fetchInvoices();
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
@@ -403,18 +410,29 @@ export default function BillingPage() {
   };
 
   // Add payment
-  const handleAddPayment = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    const totalPaid = invoice.payments
-      ? invoice.payments.filter(p => p.status === 'Completed').reduce((sum, p) => sum + p.amount, 0)
-      : 0;
-    const balance = invoice.total - totalPaid;
-    setPaymentFormData({
-      amount: balance,
-      paymentMethod: 'Cash',
-      transactionId: '',
-    });
-    setOpenPaymentDialog(true);
+  const handleAddPayment = async (invoice: Invoice) => {
+    try {
+      setError(null); // Clear any previous errors
+      // Fetch the latest invoice data to ensure we have current payment information
+      const response = await api.get(`/invoices/${invoice.id || invoice._id}`);
+      const latestInvoice = {
+        ...response.data.data.invoice,
+        id: response.data.data.invoice._id || response.data.data.invoice.id,
+      };
+      setSelectedInvoice(latestInvoice);
+      const totalPaid = latestInvoice.payments
+        ? latestInvoice.payments.filter(p => p.status === 'Completed').reduce((sum, p) => sum + p.amount, 0)
+        : 0;
+      const balance = latestInvoice.total - totalPaid;
+      setPaymentFormData({
+        amount: balance > 0 ? balance : 0,
+        paymentMethod: 'Cash',
+        transactionId: '',
+      });
+      setOpenPaymentDialog(true);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to load invoice details');
+    }
   };
 
   // Reset form
@@ -1086,9 +1104,14 @@ export default function BillingPage() {
           </Dialog>
 
           {/* Add Payment Dialog */}
-          <Dialog open={openPaymentDialog} onClose={() => setOpenPaymentDialog(false)} maxWidth="sm" fullWidth>
+          <Dialog open={openPaymentDialog} onClose={() => { setOpenPaymentDialog(false); setError(null); }} maxWidth="sm" fullWidth>
             <DialogTitle>Add Payment</DialogTitle>
             <DialogContent>
+              {error && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                  {error}
+                </Alert>
+              )}
               {selectedInvoice && (
                 <Box sx={{ pt: 2 }}>
                   <Grid container spacing={2}>
