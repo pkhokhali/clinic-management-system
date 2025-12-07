@@ -48,6 +48,14 @@ const medicalRecordSchema = new mongoose.Schema({
     url: String,
     type: String,
   }],
+  labRequest: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'LabRequest',
+  },
+  prescription: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Prescription',
+  },
 }, {
   timestamps: true,
 });

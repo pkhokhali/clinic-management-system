@@ -17,6 +17,7 @@ const invoiceRoutes = require('./routes/invoice.routes');
 const inventoryRoutes = require('./routes/inventory.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const userRoutes = require('./routes/user.routes');
+const notificationRoutes = require('./routes/notification.routes');
 
 // Initialize Express app
 const app = express();
@@ -100,6 +101,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/schedules', require('./routes/doctorSchedule.routes'));
+app.use('/api/notifications', notificationRoutes);
 
 // Connect to database
 connectDB();

@@ -46,6 +46,21 @@ const labRequestSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  medicalRecord: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'MedicalRecord',
+  },
+  invoice: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Invoice',
+  },
+  isBilled: {
+    type: Boolean,
+    default: false,
+  },
+  billedAt: {
+    type: Date,
+  },
 }, {
   timestamps: true,
 });
