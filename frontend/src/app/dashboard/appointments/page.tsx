@@ -98,6 +98,10 @@ export default function AppointmentsPage() {
   });
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [recurringDays, setRecurringDays] = useState<number[]>([]);
+  const [scheduleInfo, setScheduleInfo] = useState<{ [key: string]: Array<{ startTime: string; endTime: string; slotDuration: number }> }>({});
+  const [loadingAvailableDates, setLoadingAvailableDates] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Fetch appointments
@@ -154,6 +158,32 @@ export default function AppointmentsPage() {
     }
   };
 
+  // Fetch available dates for selected doctor
+  const fetchAvailableDates = async (doctorId: string) => {
+    if (!doctorId) {
+      setAvailableDates([]);
+      setRecurringDays([]);
+      setScheduleInfo({});
+      return;
+    }
+
+    try {
+      setLoadingAvailableDates(true);
+      const response = await api.get(`/schedules/available-dates/${doctorId}?weeks=8`);
+      const data = response.data.data;
+      setAvailableDates(data.availableDates || []);
+      setRecurringDays(data.recurringDays || []);
+      setScheduleInfo(data.scheduleInfo || {});
+    } catch (err: any) {
+      console.error('Failed to fetch available dates:', err);
+      setAvailableDates([]);
+      setRecurringDays([]);
+      setScheduleInfo({});
+    } finally {
+      setLoadingAvailableDates(false);
+    }
+  };
+
   // Fetch available time slots for selected doctor and date
   const fetchAvailableTimeSlots = async (doctorId: string, date: string) => {
     if (!doctorId || !date) {
@@ -202,6 +232,13 @@ export default function AppointmentsPage() {
     try {
       setSubmitting(true);
       setError(null);
+      
+      // Validate that selected date is in available dates list
+      if (formData.appointmentDate && availableDates.length > 0 && !availableDates.includes(formData.appointmentDate)) {
+        setError('Selected date is not available for this doctor. Please select an available date.');
+        setSubmitting(false);
+        return;
+      }
       
       const payload: any = {
         doctor: formData.doctor,
@@ -278,8 +315,12 @@ export default function AppointmentsPage() {
       status: appointment.status || 'Scheduled',
     });
     
-    if (doctorId && appointmentDate) {
-      fetchAvailableTimeSlots(doctorId, appointmentDate);
+    if (doctorId) {
+      // Fetch available dates and time slots for this doctor
+      fetchAvailableDates(doctorId);
+      if (appointmentDate) {
+        fetchAvailableTimeSlots(doctorId, appointmentDate);
+      }
     }
     
     setOpenDialog(true);
@@ -290,15 +331,6 @@ export default function AppointmentsPage() {
     setEditingAppointment(null);
     resetForm();
     setOpenDialog(true);
-  };
-
-  // Handle doctor or date change - fetch available time slots
-  const handleDoctorOrDateChange = (doctorId: string, date: string) => {
-    if (doctorId && date) {
-      fetchAvailableTimeSlots(doctorId, date);
-    } else {
-      setAvailableTimeSlots([]);
-    }
   };
 
   // Reset form
@@ -313,6 +345,9 @@ export default function AppointmentsPage() {
       status: 'Scheduled',
     });
     setAvailableTimeSlots([]);
+    setAvailableDates([]);
+    setRecurringDays([]);
+    setScheduleInfo({});
   };
 
   const handleCloseDialog = () => {
@@ -561,10 +596,16 @@ export default function AppointmentsPage() {
                     value={formData.doctor}
                     label="Doctor"
                     onChange={(e) => {
-                      setFormData({ ...formData, doctor: e.target.value, appointmentTime: '' });
-                      if (formData.appointmentDate) {
-                        handleDoctorOrDateChange(e.target.value, formData.appointmentDate);
-                      }
+                      const doctorId = e.target.value;
+                      setFormData({ 
+                        ...formData, 
+                        doctor: doctorId, 
+                        appointmentDate: '',
+                        appointmentTime: '' 
+                      });
+                      // Fetch available dates for this doctor
+                      fetchAvailableDates(doctorId);
+                      setAvailableTimeSlots([]);
                     }}
                   >
                     {doctors.map((doctor) => (
@@ -574,25 +615,81 @@ export default function AppointmentsPage() {
                     ))}
                   </Select>
                 </FormControl>
-                <TextField
-                  label="Appointment Date"
-                  type="date"
-                  value={formData.appointmentDate}
-                  onChange={(e) => {
-                    setFormData({ ...formData, appointmentDate: e.target.value, appointmentTime: '' });
-                    if (formData.doctor) {
-                      handleDoctorOrDateChange(formData.doctor, e.target.value);
-                    }
-                  }}
-                  required
-                  fullWidth
-                  InputLabelProps={{
-                    shrink: true,
-                  }}
-                  inputProps={{
-                    min: new Date().toISOString().split('T')[0],
-                  }}
-                />
+                
+                {formData.doctor && (
+                  <>
+                    {loadingAvailableDates ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2 }}>
+                        <CircularProgress size={20} />
+                        <Typography variant="body2">Loading available dates...</Typography>
+                      </Box>
+                    ) : availableDates.length === 0 ? (
+                      <Alert severity="warning">
+                        No available dates found for this doctor. Please select another doctor or ensure the doctor has a schedule configured.
+                      </Alert>
+                    ) : (
+                      <>
+                        <FormControl fullWidth required>
+                          <InputLabel>Appointment Date</InputLabel>
+                          <Select
+                            value={formData.appointmentDate}
+                            label="Appointment Date"
+                            onChange={(e) => {
+                              const selectedDate = e.target.value;
+                              setFormData({ ...formData, appointmentDate: selectedDate, appointmentTime: '' });
+                              if (formData.doctor) {
+                                fetchAvailableTimeSlots(formData.doctor, selectedDate);
+                              }
+                            }}
+                          >
+                            {availableDates.map((date) => (
+                              <MenuItem key={date} value={date}>
+                                {new Date(date).toLocaleDateString('en-US', { 
+                                  weekday: 'long', 
+                                  year: 'numeric', 
+                                  month: 'long', 
+                                  day: 'numeric' 
+                                })}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                        {formData.appointmentDate && scheduleInfo[formData.appointmentDate] && (
+                          <Box sx={{ p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
+                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                              Doctor Schedule for {new Date(formData.appointmentDate).toLocaleDateString('en-US', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              })}
+                            </Typography>
+                            {scheduleInfo[formData.appointmentDate].map((schedule, index) => (
+                              <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
+                                Time: {schedule.startTime} - {schedule.endTime} (Slot Duration: {schedule.slotDuration} min)
+                              </Typography>
+                            ))}
+                          </Box>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+                
+                {!formData.doctor && (
+                  <TextField
+                    label="Appointment Date"
+                    type="date"
+                    value={formData.appointmentDate}
+                    disabled
+                    required
+                    fullWidth
+                    InputLabelProps={{
+                      shrink: true,
+                    }}
+                    helperText="Please select a doctor first"
+                  />
+                )}
                 <FormControl fullWidth required>
                   <InputLabel>Time</InputLabel>
                   <Select

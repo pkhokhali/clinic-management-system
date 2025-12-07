@@ -6,6 +6,7 @@ const {
   updateSchedule,
   deleteSchedule,
   getAvailableSlots,
+  getAvailableDates,
 } = require('../controllers/doctorSchedule.controller');
 const { protect, authorize } = require('../middlewares/auth.middleware');
 
@@ -27,6 +28,9 @@ router
 
 // Route for getting available slots (any authenticated user)
 router.get('/availability/:doctorId', getAvailableSlots);
+
+// Route for getting available dates (any authenticated user)
+router.get('/available-dates/:doctorId', getAvailableDates);
 
 module.exports = router;
 

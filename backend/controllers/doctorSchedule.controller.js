@@ -285,3 +285,116 @@ exports.getAvailableSlots = async (req, res) => {
   }
 };
 
+// @desc    Get all available dates for a doctor (recurring days and one-time dates)
+// @route   GET /api/schedules/available-dates/:doctorId
+// @access  Private
+exports.getAvailableDates = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const { weeks = 4 } = req.query; // Default: next 4 weeks
+
+    if (!doctorId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Doctor ID is required',
+      });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + (parseInt(weeks) * 7));
+
+    // Get all active schedules for this doctor
+    const schedules = await DoctorSchedule.find({
+      doctor: doctorId,
+      isActive: true,
+    });
+
+    const availableDates = new Set();
+    const scheduleInfo = {}; // Store schedule info for each date
+
+    schedules.forEach((schedule) => {
+      if (schedule.isRecurring) {
+        // For recurring schedules, generate dates for the next N weeks
+        const dayOfWeek = schedule.dayOfWeek;
+        const effectiveFrom = schedule.effectiveFrom ? new Date(schedule.effectiveFrom) : today;
+        const effectiveUntil = schedule.effectiveUntil ? new Date(schedule.effectiveUntil) : endDate;
+
+        // Start from today or effectiveFrom, whichever is later
+        const startDate = effectiveFrom > today ? effectiveFrom : today;
+        const finalEndDate = effectiveUntil < endDate ? effectiveUntil : endDate;
+
+        // Find all dates that match this day of week within the date range
+        let currentDate = new Date(startDate);
+        
+        // Move to the first occurrence of this day of week
+        while (currentDate.getDay() !== dayOfWeek && currentDate <= finalEndDate) {
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        // Generate all dates for this day of week
+        while (currentDate <= finalEndDate) {
+          const dateString = currentDate.toISOString().split('T')[0];
+          availableDates.add(dateString);
+          
+          if (!scheduleInfo[dateString]) {
+            scheduleInfo[dateString] = [];
+          }
+          scheduleInfo[dateString].push({
+            startTime: schedule.startTime,
+            endTime: schedule.endTime,
+            slotDuration: schedule.slotDuration,
+          });
+
+          // Move to next week (7 days later)
+          currentDate.setDate(currentDate.getDate() + 7);
+        }
+      } else {
+        // For one-time schedules, add the specific date if it's in the future
+        if (schedule.specificDate) {
+          const specificDate = new Date(schedule.specificDate);
+          specificDate.setHours(0, 0, 0, 0);
+
+          if (specificDate >= today && specificDate <= endDate) {
+            const dateString = specificDate.toISOString().split('T')[0];
+            availableDates.add(dateString);
+            
+            if (!scheduleInfo[dateString]) {
+              scheduleInfo[dateString] = [];
+            }
+            scheduleInfo[dateString].push({
+              startTime: schedule.startTime,
+              endTime: schedule.endTime,
+              slotDuration: schedule.slotDuration,
+            });
+          }
+        }
+      }
+    });
+
+    // Convert to sorted array
+    const sortedDates = Array.from(availableDates).sort();
+
+    // Also return recurring days for calendar display
+    const recurringDays = schedules
+      .filter(s => s.isRecurring)
+      .map(s => s.dayOfWeek);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        availableDates: sortedDates,
+        recurringDays: [...new Set(recurringDays)], // Unique days
+        scheduleInfo, // Schedule details for each date
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching available dates',
+      error: error.message,
+    });
+  }
+};
+
