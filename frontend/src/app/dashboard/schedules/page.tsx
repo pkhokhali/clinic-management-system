@@ -318,23 +318,30 @@ export default function DoctorSchedulesPage() {
       }
 
       if (editingSchedule) {
-        // For editing, update the single schedule
+        // For editing, update the single schedule (use first time range if multiple exist)
+        const firstDayIndex = formData.selectedDays[0];
+        const firstTimeRange = formData.isRecurring && firstDayIndex !== undefined
+          ? (formData.daySchedules[firstDayIndex]?.[0] || null)
+          : null;
+
         const payload: any = {
           doctor: formData.doctor,
           startTime: formData.isRecurring 
-            ? formData.daySchedules[formData.selectedDays[0]]?.startTime || formData.startTime
+            ? (firstTimeRange?.startTime || formData.startTime)
             : formData.startTime,
           endTime: formData.isRecurring
-            ? formData.daySchedules[formData.selectedDays[0]]?.endTime || formData.endTime
+            ? (firstTimeRange?.endTime || formData.endTime)
             : formData.endTime,
-          slotDuration: formData.slotDuration,
+          slotDuration: formData.isRecurring
+            ? (firstTimeRange?.slotDuration || formData.slotDuration)
+            : formData.slotDuration,
           isRecurring: formData.isRecurring,
           isActive: formData.isActive,
           effectiveFrom: formData.effectiveFrom || new Date(),
         };
 
         if (formData.isRecurring) {
-          payload.dayOfWeek = formData.selectedDays[0];
+          payload.dayOfWeek = firstDayIndex;
         } else {
           payload.specificDate = formData.specificDate;
         }
