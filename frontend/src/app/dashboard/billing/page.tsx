@@ -202,38 +202,66 @@ export default function BillingPage() {
   };
 
   // Create invoice from lab request
-  const handleCreateInvoiceFromLabRequest = (labRequest: any) => {
-    // Pre-populate invoice form with lab request data
-    const patientId = typeof labRequest.patient === 'object' 
-      ? (labRequest.patient.id || (labRequest.patient as any)._id)
-      : labRequest.patient;
-    
-    const labRequestId = labRequest.id || labRequest._id;
-    
-    const items: InvoiceItem[] = labRequest.tests.map((testItem: any) => {
-      const test = typeof testItem.test === 'object' ? testItem.test : null;
-      const testName = test?.name || 'Unknown Test';
-      const testCost = test?.cost || 0;
-      return {
-        itemType: 'Lab Test',
-        description: testName,
-        quantity: 1,
-        unitPrice: testCost,
-        total: testCost,
-        referenceId: labRequestId, // Store lab request ID for linking
-      };
-    });
+  const handleCreateInvoiceFromLabRequest = async (labRequest: any) => {
+    try {
+      // Fetch full lab request details with populated test data
+      const response = await api.get(`/lab/requests/${labRequest.id || labRequest._id}`);
+      const fullLabRequest = response.data.data.labRequest;
+      
+      // Pre-populate invoice form with lab request data
+      const patientId = typeof fullLabRequest.patient === 'object' 
+        ? (fullLabRequest.patient.id || fullLabRequest.patient._id || (fullLabRequest.patient as any)._id)
+        : fullLabRequest.patient;
+      
+      const labRequestId = fullLabRequest.id || fullLabRequest._id;
+      
+      // Map lab tests to invoice items
+      const items: InvoiceItem[] = (fullLabRequest.tests || []).map((testItem: any) => {
+        // Handle both populated and unpopulated test references
+        const test = typeof testItem.test === 'object' && testItem.test !== null
+          ? testItem.test
+          : null;
+        
+        // If test is not populated, it might be just an ID - we need to handle this
+        // But since we fetched the full request, it should be populated
+        const testName = test?.name || 'Unknown Test';
+        const testCost = test?.cost || 0;
+        
+        if (testCost === 0) {
+          console.warn(`Lab test "${testName}" has no cost set. Using 0.`);
+        }
+        
+        return {
+          itemType: 'Lab Test',
+          description: testName,
+          quantity: 1,
+          unitPrice: testCost,
+          total: testCost,
+          referenceId: labRequestId, // Store lab request ID for linking
+        };
+      });
 
-    setInvoiceFormData({
-      patient: patientId,
-      appointment: labRequest.appointment || '',
-      items: items,
-      discount: 0,
-      tax: 0,
-      notes: `Invoice for Lab Request`,
-    });
+      if (items.length === 0) {
+        setError('No lab tests found in this request');
+        return;
+      }
 
-    setOpenInvoiceDialog(true);
+      setInvoiceFormData({
+        patient: patientId,
+        appointment: typeof fullLabRequest.appointment === 'object' 
+          ? (fullLabRequest.appointment.id || fullLabRequest.appointment._id || '')
+          : (fullLabRequest.appointment || ''),
+        items: items,
+        discount: 0,
+        tax: 0,
+        notes: `Invoice for Lab Request`,
+      });
+
+      setOpenInvoiceDialog(true);
+    } catch (err: any) {
+      console.error('Failed to fetch lab request details:', err);
+      setError('Failed to load lab request details. Please try again.');
+    }
   };
 
   useEffect(() => {

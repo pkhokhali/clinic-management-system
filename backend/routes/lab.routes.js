@@ -6,6 +6,7 @@ const {
   updateLabTest,
   createLabRequest,
   getLabRequests,
+  getLabRequest,
   createLabResult,
   getLabResults,
 } = require('../controllers/lab.controller');
@@ -50,6 +51,10 @@ router
   .route('/requests')
   .get(getLabRequests)
   .post(authorize('Doctor', 'Receptionist', 'Super Admin', 'Admin'), createLabRequest);
+
+router
+  .route('/requests/:id')
+  .get(getLabRequest);
 
 // Lab Results routes
 router

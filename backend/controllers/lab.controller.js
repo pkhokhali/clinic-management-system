@@ -96,15 +96,42 @@ exports.getLabRequests = async (req, res) => {
     }
 
     const labRequests = await LabRequest.find(query)
-      .populate('patient', 'firstName lastName')
-      .populate('doctor', 'firstName lastName')
-      .populate('tests.test', 'name cost')
+      .populate('patient', 'firstName lastName email phone')
+      .populate('doctor', 'firstName lastName specialization')
+      .populate('tests.test', 'name cost category description')
       .populate('medicalRecord')
       .populate('invoice', 'invoiceNumber status')
       .sort({ orderDate: -1 });
     res.status(200).json({ success: true, count: labRequests.length, data: { labRequests } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error fetching lab requests', error: error.message });
+  }
+};
+
+exports.getLabRequest = async (req, res) => {
+  try {
+    const labRequest = await LabRequest.findById(req.params.id)
+      .populate('patient', 'firstName lastName email phone')
+      .populate('doctor', 'firstName lastName specialization')
+      .populate('tests.test', 'name cost category description')
+      .populate('medicalRecord')
+      .populate('invoice', 'invoiceNumber status');
+
+    if (!labRequest) {
+      return res.status(404).json({ success: false, message: 'Lab request not found' });
+    }
+
+    // Check authorization - Patient/Doctor can only see their own requests
+    if (req.user.role === 'Patient' && labRequest.patient._id.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this lab request' });
+    }
+    if (req.user.role === 'Doctor' && labRequest.doctor._id.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this lab request' });
+    }
+
+    res.status(200).json({ success: true, data: { labRequest } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching lab request', error: error.message });
   }
 };
 
