@@ -389,7 +389,16 @@ export default function PatientProfilePage() {
                     <Grid item xs={12}>
                       <Typography variant="subtitle2" color="text.secondary">Address</Typography>
                       <Typography variant="body1" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <LocationIcon fontSize="small" /> {patientData.address}
+                        <LocationIcon fontSize="small" />
+                        {typeof patientData.address === 'string' 
+                          ? patientData.address 
+                          : [
+                              patientData.address.street,
+                              patientData.address.city,
+                              patientData.address.state,
+                              patientData.address.zipCode,
+                              patientData.address.country
+                            ].filter(Boolean).join(', ')}
                       </Typography>
                     </Grid>
                   )}
