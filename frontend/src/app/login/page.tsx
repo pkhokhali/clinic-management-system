@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
+import Image from 'next/image';
 import {
   Container,
   Box,
@@ -61,8 +62,25 @@ export default function LoginPage() {
       >
         <Card sx={{ width: '100%' }}>
           <CardContent sx={{ p: 4 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+              <Box
+                sx={{
+                  position: 'relative',
+                  width: 80,
+                  height: 80,
+                }}
+              >
+                <Image
+                  src="/images/logo.png"
+                  alt="KTM Life Care Clinic Logo"
+                  fill
+                  style={{ objectFit: 'contain' }}
+                  priority
+                />
+              </Box>
+            </Box>
             <Typography component="h1" variant="h4" align="center" gutterBottom>
-              Clinic Management System
+              KTM Life Care Clinic
             </Typography>
             <Typography variant="body2" align="center" color="text.secondary" sx={{ mb: 3 }}>
               Sign in to your account

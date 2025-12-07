@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import {
   Box,
   Drawer,
@@ -99,10 +100,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           alignItems: 'center',
           justifyContent: 'center',
           px: [1],
+          gap: 1,
         }}
       >
+        <Box
+          sx={{
+            position: 'relative',
+            width: 40,
+            height: 40,
+            flexShrink: 0,
+          }}
+        >
+          <Image
+            src="/images/logo.png"
+            alt="KTM Life Care Clinic Logo"
+            fill
+            style={{ objectFit: 'contain' }}
+            priority
+          />
+        </Box>
         <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 'bold' }}>
-          Clinic System
+          KTM Life Care Clinic
         </Typography>
       </Toolbar>
       <Divider />

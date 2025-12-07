@@ -7,8 +7,8 @@ import ThemeProvider from '@/providers/ThemeProvider';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Clinic Management System',
-  description: 'A comprehensive clinic management solution',
+  title: 'KTM Life Care Clinic',
+  description: 'A comprehensive clinic management solution by KTM Life Care',
 };
 
 export default function RootLayout({

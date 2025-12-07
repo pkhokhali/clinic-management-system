@@ -1,0 +1,32 @@
+====================================
+LOGO SETUP INSTRUCTIONS
+====================================
+
+IMPORTANT: Before adding your logo file, please remove the white background.
+
+1. REMOVE WHITE BACKGROUND FROM LOGO:
+   - Use an image editor (Photoshop, GIMP, Canva, Remove.bg, etc.)
+   - Remove/delete the white background
+   - Save with transparent background (PNG format)
+
+2. SAVE YOUR LOGO FILE:
+   - File name: logo.png
+   - Location: frontend/public/images/logo.png
+   - Format: PNG with transparent background
+   - Recommended size: 200x200 to 400x400 pixels
+
+3. REPLACE THIS FILE:
+   - Once you have your logo ready, save it as "logo.png" in this directory
+   - The application will automatically use it
+
+The logo will appear in:
+- Dashboard sidebar
+- Login page
+- Register page
+- Browser tab (favicon)
+
+If you see a broken image icon, it means the logo file is not found yet.
+Make sure the file is named exactly "logo.png" and is in this directory.
+
+====================================
+
