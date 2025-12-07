@@ -39,7 +39,9 @@ interface DashboardStats {
   };
   revenue: {
     total: number;
+    paid: number;
     invoices: number;
+    paidInvoices: number;
   };
   lab: {
     requests: number;
@@ -359,28 +361,44 @@ export default function ReportsPage() {
                           <TableCell>Date</TableCell>
                           <TableCell>Amount</TableCell>
                           <TableCell>Status</TableCell>
+                          <TableCell align="right">Paid</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {revenueData.invoices.map((invoice) => (
-                          <TableRow key={invoice._id}>
-                            <TableCell>{invoice.invoiceNumber}</TableCell>
-                            <TableCell>
-                              {invoice.patient?.firstName} {invoice.patient?.lastName}
-                            </TableCell>
-                            <TableCell>
-                              {invoice.invoiceDate ? new Date(invoice.invoiceDate).toLocaleDateString() : 'N/A'}
-                            </TableCell>
-                            <TableCell>{formatCurrency(invoice.total)}</TableCell>
-                            <TableCell>
-                              <Chip
-                                label={invoice.status}
-                                color={invoice.status === 'Paid' ? 'success' : 'default'}
-                                size="small"
-                              />
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {revenueData.invoices.map((invoice: any) => {
+                          const totalPaid = invoice.payments
+                            ? invoice.payments.filter((p: any) => p.status === 'Completed').reduce((sum: number, p: any) => sum + (p.amount || 0), 0)
+                            : 0;
+                          return (
+                            <TableRow key={invoice._id || invoice.id}>
+                              <TableCell>{invoice.invoiceNumber}</TableCell>
+                              <TableCell>
+                                {invoice.patient?.firstName} {invoice.patient?.lastName}
+                              </TableCell>
+                              <TableCell>
+                                {invoice.invoiceDate ? new Date(invoice.invoiceDate).toLocaleDateString() : 'N/A'}
+                              </TableCell>
+                              <TableCell>{formatCurrency(invoice.total)}</TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={invoice.status}
+                                  color={
+                                    invoice.status === 'Paid' ? 'success' :
+                                    invoice.status === 'Pending' ? 'warning' :
+                                    invoice.status === 'Partially Paid' ? 'info' :
+                                    'default'
+                                  }
+                                  size="small"
+                                />
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography variant="body2" sx={{ color: totalPaid > 0 ? 'success.main' : 'text.secondary' }}>
+                                  {formatCurrency(totalPaid)}
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </TableContainer>
