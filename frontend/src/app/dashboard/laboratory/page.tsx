@@ -46,6 +46,7 @@ import {
   Assignment as AssignmentIcon,
   Assessment as AssessmentIcon,
   Edit as EditIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { useAppSelector } from '@/store/hooks';
 import api from '@/lib/api';
