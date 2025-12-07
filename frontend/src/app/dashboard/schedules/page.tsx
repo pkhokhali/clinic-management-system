@@ -34,6 +34,8 @@ import {
   Grid,
   ToggleButton,
   ToggleButtonGroup,
+  Checkbox,
+  Divider,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -91,10 +93,11 @@ export default function DoctorSchedulesPage() {
   const [formData, setFormData] = useState({
     doctor: '',
     isRecurring: true,
-    dayOfWeek: 1,
+    selectedDays: [] as number[], // Array of selected day indices
+    daySchedules: {} as { [key: number]: { startTime: string; endTime: string } }, // Time ranges for each day
     specificDate: '',
-    startTime: '09:00',
-    endTime: '17:00',
+    startTime: '09:00', // Default time (used when adding new days)
+    endTime: '17:00', // Default time (used when adding new days)
     slotDuration: 30,
     isActive: true,
     effectiveFrom: new Date().toISOString().split('T')[0],
@@ -160,6 +163,46 @@ export default function DoctorSchedulesPage() {
     );
   });
 
+  // Handle day selection
+  const handleDayToggle = (dayIndex: number) => {
+    const newSelectedDays = formData.selectedDays.includes(dayIndex)
+      ? formData.selectedDays.filter(d => d !== dayIndex)
+      : [...formData.selectedDays, dayIndex].sort();
+
+    const newDaySchedules = { ...formData.daySchedules };
+    
+    // If adding a day, set default times
+    if (!formData.selectedDays.includes(dayIndex)) {
+      newDaySchedules[dayIndex] = {
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+      };
+    } else {
+      // If removing a day, remove its schedule
+      delete newDaySchedules[dayIndex];
+    }
+
+    setFormData({
+      ...formData,
+      selectedDays: newSelectedDays,
+      daySchedules: newDaySchedules,
+    });
+  };
+
+  // Handle time change for a specific day
+  const handleDayTimeChange = (dayIndex: number, field: 'startTime' | 'endTime', value: string) => {
+    setFormData({
+      ...formData,
+      daySchedules: {
+        ...formData.daySchedules,
+        [dayIndex]: {
+          ...formData.daySchedules[dayIndex],
+          [field]: value,
+        },
+      },
+    });
+  };
+
   // Handle form submission
   const handleSubmit = async () => {
     try {
@@ -172,8 +215,8 @@ export default function DoctorSchedulesPage() {
         return;
       }
 
-      if (formData.isRecurring && formData.dayOfWeek === undefined) {
-        setError('Please select a day of week for recurring schedule');
+      if (formData.isRecurring && formData.selectedDays.length === 0) {
+        setError('Please select at least one day of week for recurring schedule');
         setSubmitting(false);
         return;
       }
@@ -184,32 +227,89 @@ export default function DoctorSchedulesPage() {
         return;
       }
 
-      const payload: any = {
-        doctor: formData.doctor,
-        startTime: formData.startTime,
-        endTime: formData.endTime,
-        slotDuration: formData.slotDuration,
-        isRecurring: formData.isRecurring,
-        isActive: formData.isActive,
-        effectiveFrom: formData.effectiveFrom || new Date(),
-      };
-
+      // Validate that all selected days have time ranges
       if (formData.isRecurring) {
-        payload.dayOfWeek = formData.dayOfWeek;
-      } else {
-        payload.specificDate = formData.specificDate;
-      }
-
-      if (formData.effectiveUntil) {
-        payload.effectiveUntil = formData.effectiveUntil;
+        for (const dayIndex of formData.selectedDays) {
+          if (!formData.daySchedules[dayIndex] || !formData.daySchedules[dayIndex].startTime || !formData.daySchedules[dayIndex].endTime) {
+            setError(`Please set time range for ${DAYS_OF_WEEK[dayIndex]}`);
+            setSubmitting(false);
+            return;
+          }
+        }
       }
 
       if (editingSchedule) {
+        // For editing, update the single schedule
+        const payload: any = {
+          doctor: formData.doctor,
+          startTime: formData.isRecurring 
+            ? formData.daySchedules[formData.selectedDays[0]]?.startTime || formData.startTime
+            : formData.startTime,
+          endTime: formData.isRecurring
+            ? formData.daySchedules[formData.selectedDays[0]]?.endTime || formData.endTime
+            : formData.endTime,
+          slotDuration: formData.slotDuration,
+          isRecurring: formData.isRecurring,
+          isActive: formData.isActive,
+          effectiveFrom: formData.effectiveFrom || new Date(),
+        };
+
+        if (formData.isRecurring) {
+          payload.dayOfWeek = formData.selectedDays[0];
+        } else {
+          payload.specificDate = formData.specificDate;
+        }
+
+        if (formData.effectiveUntil) {
+          payload.effectiveUntil = formData.effectiveUntil;
+        }
+
         await api.put(`/schedules/${editingSchedule.id || editingSchedule._id}`, payload);
         setSuccess('Schedule updated successfully!');
       } else {
-        await api.post('/schedules', payload);
-        setSuccess('Schedule created successfully!');
+        // For new schedules, create one entry per selected day
+        if (formData.isRecurring) {
+          const promises = formData.selectedDays.map(dayIndex => {
+            const payload: any = {
+              doctor: formData.doctor,
+              startTime: formData.daySchedules[dayIndex].startTime,
+              endTime: formData.daySchedules[dayIndex].endTime,
+              slotDuration: formData.slotDuration,
+              isRecurring: true,
+              dayOfWeek: dayIndex,
+              isActive: formData.isActive,
+              effectiveFrom: formData.effectiveFrom || new Date(),
+            };
+
+            if (formData.effectiveUntil) {
+              payload.effectiveUntil = formData.effectiveUntil;
+            }
+
+            return api.post('/schedules', payload);
+          });
+
+          await Promise.all(promises);
+          setSuccess(`Successfully created ${formData.selectedDays.length} schedule(s)!`);
+        } else {
+          // One-time schedule
+          const payload: any = {
+            doctor: formData.doctor,
+            startTime: formData.startTime,
+            endTime: formData.endTime,
+            slotDuration: formData.slotDuration,
+            isRecurring: false,
+            specificDate: formData.specificDate,
+            isActive: formData.isActive,
+            effectiveFrom: formData.effectiveFrom || new Date(),
+          };
+
+          if (formData.effectiveUntil) {
+            payload.effectiveUntil = formData.effectiveUntil;
+          }
+
+          await api.post('/schedules', payload);
+          setSuccess('Schedule created successfully!');
+        }
       }
 
       setOpenDialog(false);
@@ -227,10 +327,18 @@ export default function DoctorSchedulesPage() {
   const handleEdit = (schedule: DoctorSchedule) => {
     setEditingSchedule(schedule);
     const doctorId = typeof schedule.doctor === 'object' ? schedule.doctor.id : schedule.doctor;
+    const dayOfWeek = schedule.dayOfWeek ?? 1;
+    
     setFormData({
       doctor: doctorId || '',
       isRecurring: schedule.isRecurring,
-      dayOfWeek: schedule.dayOfWeek ?? 1,
+      selectedDays: schedule.isRecurring ? [dayOfWeek] : [],
+      daySchedules: schedule.isRecurring ? {
+        [dayOfWeek]: {
+          startTime: schedule.startTime,
+          endTime: schedule.endTime,
+        },
+      } : {},
       specificDate: schedule.specificDate
         ? (typeof schedule.specificDate === 'string'
             ? schedule.specificDate.split('T')[0]
@@ -276,7 +384,8 @@ export default function DoctorSchedulesPage() {
     setFormData({
       doctor: '',
       isRecurring: true,
-      dayOfWeek: 1,
+      selectedDays: [],
+      daySchedules: {},
       specificDate: '',
       startTime: '09:00',
       endTime: '17:00',
@@ -519,61 +628,155 @@ export default function DoctorSchedulesPage() {
                 </ToggleButtonGroup>
 
                 {formData.isRecurring ? (
-                  <FormControl fullWidth required>
-                    <InputLabel>Day of Week</InputLabel>
-                    <Select
-                      value={formData.dayOfWeek}
-                      label="Day of Week"
-                      onChange={(e) => setFormData({ ...formData, dayOfWeek: e.target.value as number })}
-                    >
-                      {DAYS_OF_WEEK.map((day, index) => (
-                        <MenuItem key={index} value={index}>
-                          {day}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                ) : (
-                  <TextField
-                    label="Specific Date"
-                    type="date"
-                    value={formData.specificDate}
-                    onChange={(e) => setFormData({ ...formData, specificDate: e.target.value })}
-                    fullWidth
-                    required
-                    InputLabelProps={{ shrink: true }}
-                    inputProps={{
-                      min: new Date().toISOString().split('T')[0],
-                    }}
-                  />
-                )}
+                  <>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        Select Days of Week (Multiple selection allowed)
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {DAYS_OF_WEEK.map((day, index) => (
+                          <FormControlLabel
+                            key={index}
+                            control={
+                              <Checkbox
+                                checked={formData.selectedDays.includes(index)}
+                                onChange={() => handleDayToggle(index)}
+                              />
+                            }
+                            label={day}
+                          />
+                        ))}
+                      </Box>
+                    </Box>
 
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                    {formData.selectedDays.length > 0 && (
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ mb: 2, mt: 2 }}>
+                          Set Time Range for Each Selected Day
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          {formData.selectedDays.map((dayIndex) => (
+                            <Paper key={dayIndex} sx={{ p: 2, bgcolor: 'background.default' }}>
+                              <Typography variant="body1" sx={{ mb: 1, fontWeight: 'bold' }}>
+                                {DAYS_OF_WEEK[dayIndex]}
+                              </Typography>
+                              <Grid container spacing={2}>
+                                <Grid item xs={12} sm={6}>
+                                  <TextField
+                                    label="Start Time"
+                                    type="time"
+                                    value={formData.daySchedules[dayIndex]?.startTime || formData.startTime}
+                                    onChange={(e) => handleDayTimeChange(dayIndex, 'startTime', e.target.value)}
+                                    fullWidth
+                                    required
+                                    size="small"
+                                    InputLabelProps={{ shrink: true }}
+                                    inputProps={{ step: 300 }}
+                                  />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                  <TextField
+                                    label="End Time"
+                                    type="time"
+                                    value={formData.daySchedules[dayIndex]?.endTime || formData.endTime}
+                                    onChange={(e) => handleDayTimeChange(dayIndex, 'endTime', e.target.value)}
+                                    fullWidth
+                                    required
+                                    size="small"
+                                    InputLabelProps={{ shrink: true }}
+                                    inputProps={{ step: 300 }}
+                                  />
+                                </Grid>
+                              </Grid>
+                            </Paper>
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+
+                    {formData.selectedDays.length === 0 && (
+                      <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Select at least one day above to set time ranges
+                        </Typography>
+                      </Box>
+                    )}
+
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                      Default Time (Applied when adding new days)
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          label="Default Start Time"
+                          type="time"
+                          value={formData.startTime}
+                          onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                          fullWidth
+                          size="small"
+                          InputLabelProps={{ shrink: true }}
+                          inputProps={{ step: 300 }}
+                          helperText="Used when adding new days"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          label="Default End Time"
+                          type="time"
+                          value={formData.endTime}
+                          onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                          fullWidth
+                          size="small"
+                          InputLabelProps={{ shrink: true }}
+                          inputProps={{ step: 300 }}
+                          helperText="Used when adding new days"
+                        />
+                      </Grid>
+                    </Grid>
+                  </>
+                ) : (
+                  <>
                     <TextField
-                      label="Start Time"
-                      type="time"
-                      value={formData.startTime}
-                      onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                      label="Specific Date"
+                      type="date"
+                      value={formData.specificDate}
+                      onChange={(e) => setFormData({ ...formData, specificDate: e.target.value })}
                       fullWidth
                       required
                       InputLabelProps={{ shrink: true }}
-                      inputProps={{ step: 300 }}
+                      inputProps={{
+                        min: new Date().toISOString().split('T')[0],
+                      }}
                     />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      label="End Time"
-                      type="time"
-                      value={formData.endTime}
-                      onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                      fullWidth
-                      required
-                      InputLabelProps={{ shrink: true }}
-                      inputProps={{ step: 300 }}
-                    />
-                  </Grid>
-                </Grid>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          label="Start Time"
+                          type="time"
+                          value={formData.startTime}
+                          onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                          fullWidth
+                          required
+                          InputLabelProps={{ shrink: true }}
+                          inputProps={{ step: 300 }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          label="End Time"
+                          type="time"
+                          value={formData.endTime}
+                          onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                          fullWidth
+                          required
+                          InputLabelProps={{ shrink: true }}
+                          inputProps={{ step: 300 }}
+                        />
+                      </Grid>
+                    </Grid>
+                  </>
+                )}
 
                 <TextField
                   label="Slot Duration (minutes)"
@@ -626,7 +829,19 @@ export default function DoctorSchedulesPage() {
               <Button
                 onClick={handleSubmit}
                 variant="contained"
-                disabled={submitting || !formData.doctor || !formData.startTime || !formData.endTime}
+                disabled={
+                  submitting ||
+                  !formData.doctor ||
+                  (formData.isRecurring && (
+                    formData.selectedDays.length === 0 ||
+                    formData.selectedDays.some(day => 
+                      !formData.daySchedules[day] || 
+                      !formData.daySchedules[day].startTime || 
+                      !formData.daySchedules[day].endTime
+                    )
+                  )) ||
+                  (!formData.isRecurring && (!formData.specificDate || !formData.startTime || !formData.endTime))
+                }
               >
                 {submitting ? <CircularProgress size={24} /> : editingSchedule ? 'Update' : 'Create'}
               </Button>
