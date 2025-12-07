@@ -127,7 +127,7 @@ exports.getDashboardStats = async (req, res) => {
 exports.getRevenueReport = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    const query: any = {};
+    const query = {};
     
     // Filter by invoiceDate (not status, to show all invoices)
     if (startDate || endDate) {
