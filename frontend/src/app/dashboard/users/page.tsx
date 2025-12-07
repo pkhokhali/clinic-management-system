@@ -29,6 +29,12 @@ import {
   Alert,
   CircularProgress,
   Tooltip,
+  Switch,
+  FormControlLabel,
+  Divider,
+  Tabs,
+  Tab,
+  Checkbox,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -37,10 +43,19 @@ import {
   Search as SearchIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useAppSelector } from '@/store/hooks';
 import api from '@/lib/api';
 import { User } from '@/types';
+import {
+  loadMandatoryFieldsConfig,
+  saveMandatoryFieldsConfig,
+  resetToDefaultConfig,
+  isFieldMandatory,
+  getFieldsForRole,
+  type MandatoryFieldsConfig,
+} from '@/utils/mandatoryFieldsConfig';
 
 interface UserFormData {
   firstName: string;
@@ -90,6 +105,12 @@ export default function UsersManagementPage() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  
+  // Mandatory fields configuration
+  const [mandatoryFieldsConfig, setMandatoryFieldsConfig] = useState<MandatoryFieldsConfig>(() => loadMandatoryFieldsConfig());
+  const [openConfigDialog, setOpenConfigDialog] = useState(false);
+  const [configTab, setConfigTab] = useState(0);
+  const roles = ['Super Admin', 'Admin', 'Doctor', 'Receptionist', 'Lab Technician', 'Patient'];
 
   // Fetch users
   const fetchUsers = async () => {
@@ -266,6 +287,78 @@ export default function UsersManagementPage() {
     return colors[role] || 'default';
   };
 
+  // Handle mandatory fields configuration
+  const handleOpenConfigDialog = () => {
+    setOpenConfigDialog(true);
+  };
+
+  const handleCloseConfigDialog = () => {
+    setOpenConfigDialog(false);
+    setConfigTab(0);
+  };
+
+  const handleSaveConfig = () => {
+    saveMandatoryFieldsConfig(mandatoryFieldsConfig);
+    setSuccess('Mandatory fields configuration saved successfully!');
+    setOpenConfigDialog(false);
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
+  const handleResetConfig = () => {
+    if (window.confirm('Are you sure you want to reset to default configuration?')) {
+      const defaultConfig = resetToDefaultConfig();
+      setMandatoryFieldsConfig(defaultConfig);
+      setSuccess('Configuration reset to defaults!');
+      setTimeout(() => setSuccess(null), 3000);
+    }
+  };
+
+  const toggleFieldMandatory = (role: string, field: string) => {
+    setMandatoryFieldsConfig((prev) => ({
+      ...prev,
+      [role]: {
+        ...prev[role],
+        [field]: !prev[role]?.[field],
+      },
+    }));
+  };
+
+  // Check if a field is mandatory for the current role
+  const isMandatory = (field: string): boolean => {
+    return isFieldMandatory(formData.role, field, mandatoryFieldsConfig);
+  };
+
+  // Validate form based on mandatory fields configuration
+  const isFormValid = (): boolean => {
+    if (submitting) return false;
+    
+    const config = mandatoryFieldsConfig[formData.role] || {};
+    
+    // Check all mandatory fields
+    if (config.firstName && !formData.firstName) return false;
+    if (config.lastName && !formData.lastName) return false;
+    if (config.email && !formData.email) return false;
+    if (config.phone && !formData.phone) return false;
+    if (!editingUser && config.password && !formData.password) return false;
+    
+    // Role-specific mandatory fields
+    if (formData.role === 'Doctor' || formData.role === 'Patient') {
+      if (config.dateOfBirth && !formData.dateOfBirth) return false;
+      if (config.gender && !formData.gender) return false;
+    }
+    
+    if (formData.role === 'Doctor') {
+      if (config.specialization && !formData.specialization) return false;
+      if (config.licenseNumber && !formData.licenseNumber) return false;
+    }
+    
+    if (formData.role === 'Patient') {
+      if (config.bloodGroup && !formData.bloodGroup) return false;
+    }
+    
+    return true;
+  };
+
   return (
     <ProtectedRoute allowedRoles={['Super Admin', 'Admin']}>
       <DashboardLayout>
@@ -274,13 +367,24 @@ export default function UsersManagementPage() {
             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
               Users Management
             </Typography>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAddNew}
-            >
-              Add New User
-            </Button>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              {currentUser?.role === 'Super Admin' && (
+                <Button
+                  variant="outlined"
+                  startIcon={<SettingsIcon />}
+                  onClick={handleOpenConfigDialog}
+                >
+                  Configure Fields
+                </Button>
+              )}
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleAddNew}
+              >
+                Add New User
+              </Button>
+            </Box>
           </Box>
 
           {error && (
@@ -414,14 +518,14 @@ export default function UsersManagementPage() {
                   label="First Name"
                   value={formData.firstName}
                   onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  required
+                  required={isMandatory('firstName')}
                   fullWidth
                 />
                 <TextField
                   label="Last Name"
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  required
+                  required={isMandatory('lastName')}
                   fullWidth
                 />
                 <TextField
@@ -429,7 +533,7 @@ export default function UsersManagementPage() {
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
+                  required={isMandatory('email')}
                   fullWidth
                   disabled={!!editingUser}
                 />
@@ -437,11 +541,11 @@ export default function UsersManagementPage() {
                   label="Phone"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  required
+                  required={isMandatory('phone')}
                   fullWidth
                   inputProps={{ maxLength: 10 }}
                 />
-                <FormControl fullWidth required>
+                <FormControl fullWidth required={isMandatory('role')}>
                   <InputLabel>Role</InputLabel>
                   <Select
                     value={formData.role}
@@ -464,7 +568,7 @@ export default function UsersManagementPage() {
                     type="date"
                     value={formData.dateOfBirth || ''}
                     onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                    required
+                    required={isMandatory('dateOfBirth')}
                     fullWidth
                     InputLabelProps={{
                       shrink: true,
@@ -474,7 +578,7 @@ export default function UsersManagementPage() {
 
                 {/* Doctor & Patient Fields - Gender */}
                 {(formData.role === 'Doctor' || formData.role === 'Patient') && (
-                  <FormControl fullWidth required>
+                  <FormControl fullWidth required={isMandatory('gender')}>
                     <InputLabel>Gender</InputLabel>
                     <Select
                       value={formData.gender || ''}
@@ -495,7 +599,7 @@ export default function UsersManagementPage() {
                       label="Specialization"
                       value={formData.specialization || ''}
                       onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
-                      required
+                      required={isMandatory('specialization')}
                       fullWidth
                       placeholder="e.g., Cardiology, Pediatrics"
                     />
@@ -503,7 +607,7 @@ export default function UsersManagementPage() {
                       label="License Number"
                       value={formData.licenseNumber || ''}
                       onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
-                      required
+                      required={isMandatory('licenseNumber')}
                       fullWidth
                       placeholder="Medical license number"
                     />
@@ -512,7 +616,7 @@ export default function UsersManagementPage() {
 
                 {/* Patient Specific Fields */}
                 {formData.role === 'Patient' && (
-                  <FormControl fullWidth required>
+                  <FormControl fullWidth required={isMandatory('bloodGroup')}>
                     <InputLabel>Blood Group</InputLabel>
                     <Select
                       value={formData.bloodGroup || ''}
@@ -537,7 +641,7 @@ export default function UsersManagementPage() {
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   fullWidth
-                  required={!editingUser}
+                  required={!editingUser && isMandatory('password')}
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
@@ -571,21 +675,74 @@ export default function UsersManagementPage() {
               <Button
                 onClick={handleSubmit}
                 variant="contained"
-                disabled={
-                  submitting ||
-                  !formData.firstName ||
-                  !formData.lastName ||
-                  !formData.email ||
-                  !formData.phone ||
-                  (!editingUser && !formData.password) ||
-                  (formData.role === 'Doctor' && (!formData.dateOfBirth || !formData.gender || !formData.specialization || !formData.licenseNumber)) ||
-                  (formData.role === 'Patient' && (!formData.dateOfBirth || !formData.gender || !formData.bloodGroup))
-                }
+                disabled={!isFormValid()}
               >
                 {submitting ? <CircularProgress size={24} /> : editingUser ? 'Update' : 'Create'}
               </Button>
             </DialogActions>
           </Dialog>
+
+          {/* Mandatory Fields Configuration Dialog */}
+          {currentUser?.role === 'Super Admin' && (
+            <Dialog open={openConfigDialog} onClose={handleCloseConfigDialog} maxWidth="md" fullWidth scroll="paper">
+              <DialogTitle>
+                Configure Mandatory Fields for User Creation
+              </DialogTitle>
+              <DialogContent>
+                <Box sx={{ pt: 2 }}>
+                  <Tabs value={configTab} onChange={(e, newValue) => setConfigTab(newValue)} sx={{ mb: 3 }}>
+                    {roles.map((role) => (
+                      <Tab key={role} label={role} />
+                    ))}
+                  </Tabs>
+                  
+                  {roles.map((role, index) => (
+                    <Box key={role} sx={{ display: configTab === index ? 'block' : 'none' }}>
+                      <Typography variant="h6" gutterBottom>
+                        {role} - Mandatory Fields
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Toggle fields to make them mandatory or optional when creating users with this role.
+                      </Typography>
+                      <Divider sx={{ mb: 2 }} />
+                      
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {getFieldsForRole(role).map((field) => (
+                          <FormControlLabel
+                            key={field.key}
+                            control={
+                              <Checkbox
+                                checked={mandatoryFieldsConfig[role]?.[field.key] ?? false}
+                                onChange={() => toggleFieldMandatory(role, field.key)}
+                              />
+                            }
+                            label={
+                              <Box>
+                                <Typography variant="body1">{field.label}</Typography>
+                                {mandatoryFieldsConfig[role]?.[field.key] && (
+                                  <Chip label="Mandatory" color="primary" size="small" sx={{ ml: 1, mt: 0.5 }} />
+                                )}
+                              </Box>
+                            }
+                          />
+                        ))}
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={handleResetConfig} color="warning">
+                  Reset to Defaults
+                </Button>
+                <Box sx={{ flex: '1 1 auto' }} />
+                <Button onClick={handleCloseConfigDialog}>Cancel</Button>
+                <Button onClick={handleSaveConfig} variant="contained">
+                  Save Configuration
+                </Button>
+              </DialogActions>
+            </Dialog>
+          )}
         </Box>
       </DashboardLayout>
     </ProtectedRoute>
