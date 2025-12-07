@@ -176,6 +176,14 @@ export default function MedicalRecordsPage() {
     instructions: '',
     quantity: 1,
   });
+  const [currentRecordMedication, setCurrentRecordMedication] = useState<Medication>({
+    medicineName: '',
+    dosage: '',
+    frequency: '',
+    duration: '',
+    instructions: '',
+    quantity: 1,
+  });
   const [submittingPrescription, setSubmittingPrescription] = useState(false);
 
   // Fetch patients
@@ -562,12 +570,12 @@ export default function MedicalRecordsPage() {
 
   // Add medication to record form (for combined workflow)
   const handleAddMedicationToRecord = () => {
-    if (currentMedication.medicineName && currentMedication.dosage && currentMedication.frequency && currentMedication.duration) {
+    if (currentRecordMedication.medicineName && currentRecordMedication.dosage && currentRecordMedication.frequency && currentRecordMedication.duration) {
       setRecordFormData({
         ...recordFormData,
-        prescriptionMedications: [...recordFormData.prescriptionMedications, { ...currentMedication }],
+        prescriptionMedications: [...recordFormData.prescriptionMedications, { ...currentRecordMedication }],
       });
-      setCurrentMedication({
+      setCurrentRecordMedication({
         medicineName: '',
         dosage: '',
         frequency: '',
@@ -607,7 +615,7 @@ export default function MedicalRecordsPage() {
       prescriptionNotes: '',
     });
     setDiagnosisInput('');
-    setCurrentMedication({
+    setCurrentRecordMedication({
       medicineName: '',
       dosage: '',
       frequency: '',
@@ -1114,8 +1122,8 @@ export default function MedicalRecordsPage() {
                       <Grid item xs={12} sm={3}>
                         <TextField
                           label="Medicine Name"
-                          value={currentMedication.medicineName}
-                          onChange={(e) => setCurrentMedication({ ...currentMedication, medicineName: e.target.value })}
+                          value={currentRecordMedication.medicineName}
+                          onChange={(e) => setCurrentRecordMedication({ ...currentRecordMedication, medicineName: e.target.value })}
                           fullWidth
                           size="small"
                         />
@@ -1123,8 +1131,8 @@ export default function MedicalRecordsPage() {
                       <Grid item xs={12} sm={2}>
                         <TextField
                           label="Dosage"
-                          value={currentMedication.dosage}
-                          onChange={(e) => setCurrentMedication({ ...currentMedication, dosage: e.target.value })}
+                          value={currentRecordMedication.dosage}
+                          onChange={(e) => setCurrentRecordMedication({ ...currentRecordMedication, dosage: e.target.value })}
                           fullWidth
                           size="small"
                         />
@@ -1132,8 +1140,8 @@ export default function MedicalRecordsPage() {
                       <Grid item xs={12} sm={2}>
                         <TextField
                           label="Frequency"
-                          value={currentMedication.frequency}
-                          onChange={(e) => setCurrentMedication({ ...currentMedication, frequency: e.target.value })}
+                          value={currentRecordMedication.frequency}
+                          onChange={(e) => setCurrentRecordMedication({ ...currentRecordMedication, frequency: e.target.value })}
                           fullWidth
                           size="small"
                           placeholder="e.g., 2x daily"
@@ -1142,8 +1150,8 @@ export default function MedicalRecordsPage() {
                       <Grid item xs={12} sm={2}>
                         <TextField
                           label="Duration"
-                          value={currentMedication.duration}
-                          onChange={(e) => setCurrentMedication({ ...currentMedication, duration: e.target.value })}
+                          value={currentRecordMedication.duration}
+                          onChange={(e) => setCurrentRecordMedication({ ...currentRecordMedication, duration: e.target.value })}
                           fullWidth
                           size="small"
                           placeholder="e.g., 7 days"
@@ -1153,8 +1161,8 @@ export default function MedicalRecordsPage() {
                         <TextField
                           label="Quantity"
                           type="number"
-                          value={currentMedication.quantity}
-                          onChange={(e) => setCurrentMedication({ ...currentMedication, quantity: parseInt(e.target.value) || 1 })}
+                          value={currentRecordMedication.quantity}
+                          onChange={(e) => setCurrentRecordMedication({ ...currentRecordMedication, quantity: parseInt(e.target.value) || 1 })}
                           fullWidth
                           size="small"
                           inputProps={{ min: 1 }}
@@ -1163,8 +1171,8 @@ export default function MedicalRecordsPage() {
                       <Grid item xs={12}>
                         <TextField
                           label="Instructions"
-                          value={currentMedication.instructions}
-                          onChange={(e) => setCurrentMedication({ ...currentMedication, instructions: e.target.value })}
+                          value={currentRecordMedication.instructions}
+                          onChange={(e) => setCurrentRecordMedication({ ...currentRecordMedication, instructions: e.target.value })}
                           fullWidth
                           size="small"
                         />
@@ -1174,7 +1182,7 @@ export default function MedicalRecordsPage() {
                           onClick={handleAddMedicationToRecord}
                           variant="outlined"
                           startIcon={<AddIcon />}
-                          disabled={!currentMedication.medicineName || !currentMedication.dosage || !currentMedication.frequency || !currentMedication.duration}
+                          disabled={!currentRecordMedication.medicineName || !currentRecordMedication.dosage || !currentRecordMedication.frequency || !currentRecordMedication.duration}
                         >
                           Add Medication
                         </Button>
