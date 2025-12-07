@@ -50,6 +50,14 @@ interface UserFormData {
   password: string;
   role: string;
   isActive: boolean;
+  // Doctor & Patient fields
+  dateOfBirth?: string;
+  gender?: 'Male' | 'Female' | 'Other';
+  // Doctor specific
+  specialization?: string;
+  licenseNumber?: string;
+  // Patient specific
+  bloodGroup?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
 }
 
 export default function UsersManagementPage() {
@@ -74,6 +82,11 @@ export default function UsersManagementPage() {
     password: '',
     role: 'Patient',
     isActive: true,
+    dateOfBirth: '',
+    gender: undefined,
+    specialization: '',
+    licenseNumber: '',
+    bloodGroup: undefined,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -123,29 +136,42 @@ export default function UsersManagementPage() {
       setSubmitting(true);
       setError(null);
       
+      // Build request payload with role-specific fields
+      const payload: any = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        role: formData.role,
+        isActive: formData.isActive,
+      };
+
+      // Add role-specific required fields
+      if (formData.role === 'Doctor' || formData.role === 'Patient') {
+        if (formData.dateOfBirth) payload.dateOfBirth = formData.dateOfBirth;
+        if (formData.gender) payload.gender = formData.gender;
+      }
+
+      // Doctor-specific fields
+      if (formData.role === 'Doctor') {
+        if (formData.specialization) payload.specialization = formData.specialization;
+        if (formData.licenseNumber) payload.licenseNumber = formData.licenseNumber;
+      }
+
+      // Patient-specific fields
+      if (formData.role === 'Patient') {
+        if (formData.bloodGroup) payload.bloodGroup = formData.bloodGroup;
+      }
+
       if (editingUser) {
         // Update existing user
-        await api.put(`/users/${editingUser.id}`, {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          role: formData.role,
-          isActive: formData.isActive,
-          ...(formData.password && { password: formData.password }),
-        });
+        if (formData.password) payload.password = formData.password;
+        await api.put(`/users/${editingUser.id}`, payload);
         setSuccess('User updated successfully!');
       } else {
         // Create new user
-        await api.post('/users', {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          password: formData.password || 'Default@123',
-          role: formData.role,
-          isActive: formData.isActive,
-        });
+        payload.password = formData.password || 'Default@123';
+        await api.post('/users', payload);
         setSuccess('User created successfully!');
       }
       
@@ -187,6 +213,11 @@ export default function UsersManagementPage() {
       password: '',
       role: user.role || 'Patient',
       isActive: user.isActive !== false,
+      dateOfBirth: user.dateOfBirth ? (typeof user.dateOfBirth === 'string' ? user.dateOfBirth.split('T')[0] : new Date(user.dateOfBirth).toISOString().split('T')[0]) : '',
+      gender: user.gender as 'Male' | 'Female' | 'Other' | undefined,
+      specialization: user.specialization || '',
+      licenseNumber: user.licenseNumber || '',
+      bloodGroup: user.bloodGroup as 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | undefined,
     });
     setOpenDialog(true);
   };
@@ -208,6 +239,11 @@ export default function UsersManagementPage() {
       password: '',
       role: 'Patient',
       isActive: true,
+      dateOfBirth: '',
+      gender: undefined,
+      specialization: '',
+      licenseNumber: '',
+      bloodGroup: undefined,
     });
   };
 
@@ -368,7 +404,7 @@ export default function UsersManagementPage() {
           </TableContainer>
 
           {/* Add/Edit Dialog */}
-          <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+          <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth scroll="paper">
             <DialogTitle>
               {editingUser ? 'Edit User' : 'Add New User'}
             </DialogTitle>
@@ -420,6 +456,81 @@ export default function UsersManagementPage() {
                     <MenuItem value="Patient">Patient</MenuItem>
                   </Select>
                 </FormControl>
+
+                {/* Doctor & Patient Fields - Date of Birth */}
+                {(formData.role === 'Doctor' || formData.role === 'Patient') && (
+                  <TextField
+                    label="Date of Birth"
+                    type="date"
+                    value={formData.dateOfBirth || ''}
+                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                    required
+                    fullWidth
+                    InputLabelProps={{
+                      shrink: true,
+                    }}
+                  />
+                )}
+
+                {/* Doctor & Patient Fields - Gender */}
+                {(formData.role === 'Doctor' || formData.role === 'Patient') && (
+                  <FormControl fullWidth required>
+                    <InputLabel>Gender</InputLabel>
+                    <Select
+                      value={formData.gender || ''}
+                      label="Gender"
+                      onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'Male' | 'Female' | 'Other' })}
+                    >
+                      <MenuItem value="Male">Male</MenuItem>
+                      <MenuItem value="Female">Female</MenuItem>
+                      <MenuItem value="Other">Other</MenuItem>
+                    </Select>
+                  </FormControl>
+                )}
+
+                {/* Doctor Specific Fields */}
+                {formData.role === 'Doctor' && (
+                  <>
+                    <TextField
+                      label="Specialization"
+                      value={formData.specialization || ''}
+                      onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
+                      required
+                      fullWidth
+                      placeholder="e.g., Cardiology, Pediatrics"
+                    />
+                    <TextField
+                      label="License Number"
+                      value={formData.licenseNumber || ''}
+                      onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
+                      required
+                      fullWidth
+                      placeholder="Medical license number"
+                    />
+                  </>
+                )}
+
+                {/* Patient Specific Fields */}
+                {formData.role === 'Patient' && (
+                  <FormControl fullWidth required>
+                    <InputLabel>Blood Group</InputLabel>
+                    <Select
+                      value={formData.bloodGroup || ''}
+                      label="Blood Group"
+                      onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value as typeof formData.bloodGroup })}
+                    >
+                      <MenuItem value="A+">A+</MenuItem>
+                      <MenuItem value="A-">A-</MenuItem>
+                      <MenuItem value="B+">B+</MenuItem>
+                      <MenuItem value="B-">B-</MenuItem>
+                      <MenuItem value="AB+">AB+</MenuItem>
+                      <MenuItem value="AB-">AB-</MenuItem>
+                      <MenuItem value="O+">O+</MenuItem>
+                      <MenuItem value="O-">O-</MenuItem>
+                    </Select>
+                  </FormControl>
+                )}
+
                 <TextField
                   label={editingUser ? 'New Password (leave empty to keep current)' : 'Password'}
                   type={showPassword ? 'text' : 'password'}
@@ -460,7 +571,16 @@ export default function UsersManagementPage() {
               <Button
                 onClick={handleSubmit}
                 variant="contained"
-                disabled={submitting || !formData.firstName || !formData.lastName || !formData.email || !formData.phone}
+                disabled={
+                  submitting ||
+                  !formData.firstName ||
+                  !formData.lastName ||
+                  !formData.email ||
+                  !formData.phone ||
+                  (!editingUser && !formData.password) ||
+                  (formData.role === 'Doctor' && (!formData.dateOfBirth || !formData.gender || !formData.specialization || !formData.licenseNumber)) ||
+                  (formData.role === 'Patient' && (!formData.dateOfBirth || !formData.gender || !formData.bloodGroup))
+                }
               >
                 {submitting ? <CircularProgress size={24} /> : editingUser ? 'Update' : 'Create'}
               </Button>
