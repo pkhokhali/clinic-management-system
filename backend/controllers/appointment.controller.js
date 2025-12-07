@@ -10,6 +10,89 @@ exports.createAppointment = async (req, res) => {
   try {
     const { patient, doctor, appointmentDate, appointmentTime, reason, notes } = req.body;
 
+    // Validate date is not in the past
+    const selectedDate = new Date(appointmentDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    if (selectedDate < today) {
+      return res.status(400).json({
+        success: false,
+        message: 'Appointment date cannot be in the past',
+      });
+    }
+
+    // Validate time if appointment is today
+    if (selectedDate.getTime() === today.getTime()) {
+      const [hour, minute] = appointmentTime.split(':').map(Number);
+      const appointmentDateTime = new Date();
+      appointmentDateTime.setHours(hour, minute, 0, 0);
+
+      if (appointmentDateTime <= new Date()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Appointment time must be in the future',
+        });
+      }
+    }
+
+    // Check if doctor has schedule for this date/time
+    const DoctorSchedule = require('../models/DoctorSchedule.model');
+    const dayOfWeek = selectedDate.getDay();
+    const dateString = selectedDate.toISOString().split('T')[0];
+
+    const schedules = await DoctorSchedule.find({
+      doctor,
+      isActive: true,
+      $or: [
+        {
+          isRecurring: true,
+          dayOfWeek: dayOfWeek,
+          effectiveFrom: { $lte: selectedDate },
+          $or: [
+            { effectiveUntil: { $exists: false } },
+            { effectiveUntil: null },
+            { effectiveUntil: { $gte: selectedDate } },
+          ],
+        },
+        {
+          isRecurring: false,
+          specificDate: {
+            $gte: new Date(dateString + 'T00:00:00.000Z'),
+            $lt: new Date(dateString + 'T23:59:59.999Z'),
+          },
+        },
+      ],
+    });
+
+    if (schedules.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Doctor does not have a schedule for this date',
+      });
+    }
+
+    // Check if the selected time is within any schedule's time range
+    const [selectedHour, selectedMin] = appointmentTime.split(':').map(Number);
+    const selectedTimeMinutes = selectedHour * 60 + selectedMin;
+
+    const isTimeValid = schedules.some((schedule) => {
+      const [startHour, startMin] = schedule.startTime.split(':').map(Number);
+      const [endHour, endMin] = schedule.endTime.split(':').map(Number);
+      const startTimeMinutes = startHour * 60 + startMin;
+      const endTimeMinutes = endHour * 60 + endMin;
+
+      return selectedTimeMinutes >= startTimeMinutes && selectedTimeMinutes < endTimeMinutes;
+    });
+
+    if (!isTimeValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected time is not within doctor\'s schedule',
+      });
+    }
+
     // Check for conflicts
     const conflictingAppointment = await Appointment.findOne({
       doctor,
@@ -248,37 +331,19 @@ exports.getDoctorAvailability = async (req, res) => {
     const { doctorId } = req.params;
     const { date } = req.query;
 
-    const selectedDate = date ? new Date(date) : new Date();
-    const startOfDay = new Date(selectedDate.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(selectedDate.setHours(23, 59, 59, 999));
-
-    const appointments = await Appointment.find({
-      doctor: doctorId,
-      appointmentDate: { $gte: startOfDay, $lte: endOfDay },
-      status: { $in: ['Scheduled', 'Confirmed'] },
-    }).select('appointmentTime');
-
-    const bookedSlots = appointments.map((apt) => apt.appointmentTime);
-
-    // Generate available time slots (9 AM to 5 PM, 30-minute intervals)
-    const availableSlots = [];
-    for (let hour = 9; hour < 17; hour++) {
-      for (let minute = 0; minute < 60; minute += 30) {
-        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        if (!bookedSlots.includes(time)) {
-          availableSlots.push(time);
-        }
-      }
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Date parameter is required',
+      });
     }
 
-    res.status(200).json({
-      success: true,
-      data: {
-        date: selectedDate,
-        availableSlots,
-        bookedSlots,
-      },
-    });
+    // Use the schedule-based availability endpoint logic
+    const scheduleController = require('./doctorSchedule.controller');
+    req.params.doctorId = doctorId;
+    req.query.date = date;
+    
+    return scheduleController.getAvailableSlots(req, res);
   } catch (error) {
     res.status(500).json({
       success: false,

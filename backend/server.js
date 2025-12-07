@@ -99,6 +99,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/schedules', require('./routes/doctorSchedule.routes'));
 
 // Connect to database
 connectDB();
