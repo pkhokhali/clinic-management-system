@@ -68,7 +68,7 @@ interface MedicalRecord {
   diagnosis?: string[];
   treatment?: string;
   followUp?: {
-    date?: Date;
+    date?: Date | string;
     notes?: string;
   };
 }
