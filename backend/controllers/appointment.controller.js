@@ -202,10 +202,18 @@ exports.getAppointments = async (req, res) => {
     
     if (req.user.role === 'Patient') {
       query.patient = req.user.id;
-    } else if (req.user.role === 'Doctor') {
-      query.doctor = req.user.id;
     } else if (patient) {
+      // If a specific patient is requested (e.g., viewing patient history)
       query.patient = patient;
+      // For doctors viewing a specific patient's history, show all appointments for that patient
+      // (not filtered by doctor, so they can see the complete patient history)
+      // If not viewing a specific patient and user is a doctor, show only their appointments
+      if (req.user.role === 'Doctor' && !patient) {
+        query.doctor = req.user.id;
+      }
+    } else if (req.user.role === 'Doctor') {
+      // When viewing general list (no specific patient), show only own appointments
+      query.doctor = req.user.id;
     } else if (doctor) {
       query.doctor = doctor;
     }

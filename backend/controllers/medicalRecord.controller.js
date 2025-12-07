@@ -35,15 +35,18 @@ exports.getMedicalRecords = async (req, res) => {
     
     // Role-based visibility:
     // - Patient: own records only
-    // - Doctor: own records only
+    // - Doctor: when viewing a specific patient's history, show all records for that patient (not just own)
+    // - Doctor: when viewing general list, show only own records
     // - Admin, Super Admin, Receptionist: all records
     if (req.user.role === 'Patient') {
       query.patient = req.user.id;
     } else if (patient) {
       query.patient = patient;
-    }
-    
-    if (req.user.role === 'Doctor') {
+      // If doctor is viewing a specific patient's history, show all records for that patient
+      // (not filtered by doctor, so they can see the complete patient history)
+      // The patient must be assigned to this doctor (handled by patients list filtering)
+    } else if (req.user.role === 'Doctor') {
+      // When viewing general list (no specific patient), show only own records
       query.doctor = req.user.id;
     }
     // Admin, Super Admin, Receptionist can see all (no filter)
@@ -239,9 +242,10 @@ exports.getPrescriptions = async (req, res) => {
       query.patient = req.user.id;
     } else if (patient) {
       query.patient = patient;
-    }
-    
-    if (req.user.role === 'Doctor') {
+      // If doctor is viewing a specific patient's history, show all prescriptions for that patient
+      // (not filtered by doctor, so they can see the complete patient history)
+    } else if (req.user.role === 'Doctor') {
+      // When viewing general list (no specific patient), show only own prescriptions
       query.doctor = req.user.id;
     }
     
