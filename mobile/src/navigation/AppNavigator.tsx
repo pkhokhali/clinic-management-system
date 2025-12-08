@@ -6,6 +6,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
 import PatientDashboardScreen from '../screens/Patient/PatientDashboardScreen';
+import AppointmentsScreen from '../screens/Patient/AppointmentsScreen';
+import MedicalRecordsScreen from '../screens/Patient/MedicalRecordsScreen';
+import BookAppointmentScreen from '../screens/Patient/BookAppointmentScreen';
+import ProfileScreen from '../screens/Patient/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -31,7 +35,7 @@ function PatientTabs() {
       />
       <Tab.Screen
         name="Appointments"
-        component={PatientDashboardScreen}
+        component={AppointmentsScreen}
         options={{
           title: 'Appointments',
           tabBarIcon: ({ color, size }) => (
@@ -41,7 +45,7 @@ function PatientTabs() {
       />
       <Tab.Screen
         name="Records"
-        component={PatientDashboardScreen}
+        component={MedicalRecordsScreen}
         options={{
           title: 'Records',
           tabBarIcon: ({ color, size }) => (
@@ -51,7 +55,7 @@ function PatientTabs() {
       />
       <Tab.Screen
         name="Profile"
-        component={PatientDashboardScreen}
+        component={ProfileScreen}
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => (
@@ -78,7 +82,19 @@ export default function AppNavigator() {
         ) : (
           <>
             {user?.role === 'Patient' && (
-              <Stack.Screen name="Main" component={PatientTabs} />
+              <>
+                <Stack.Screen name="Main" component={PatientTabs} />
+                <Stack.Screen 
+                  name="BookAppointment" 
+                  component={BookAppointmentScreen}
+                  options={{ title: 'Book Appointment', headerShown: true }}
+                />
+                <Stack.Screen 
+                  name="MedicalRecords" 
+                  component={MedicalRecordsScreen}
+                  options={{ title: 'Medical Records', headerShown: true }}
+                />
+              </>
             )}
             {/* Add other role-based navigators here */}
             {user?.role === 'Doctor' && (
