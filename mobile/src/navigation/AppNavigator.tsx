@@ -84,7 +84,7 @@ export default function AppNavigator() {
             {user?.role === 'Doctor' && (
               <Stack.Screen name="Main" component={PatientTabs} />
             )}
-            {user?.role === 'Super Admin' || user?.role === 'Admin' ? (
+            {(user?.role === 'Super Admin' || user?.role === 'Admin') && (
               <Stack.Screen name="Main" component={PatientTabs} />
             )}
           </>
